@@ -129,3 +129,5 @@ target_include_directories(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES
         LINKER_LANGUAGE CXX
         CUDA_SEPARABLE_COMPILATION ON)
+
+add_executable(testMQIO testMQIO.cpp)
