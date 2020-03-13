@@ -107,16 +107,20 @@ set(CMAKE_CUDA_FLAGS_RELEASE
 # ========================================================================== #
 
 set(CXX_SRCS
-        threadpool.cu)
+        src/options.cpp
+        src/utils.cpp)
 
-set(CUDA_SRCS)
+set(CUDA_SRCS
+        src/keccak.cu
+        src/solver.cu
+        src/cuda_utils.cu)
 
 
 # ========================================================================== #
 # main program
 # ========================================================================== #
 
-add_executable(${PROJECT_NAME} ${CXX_SRCS} main.cu)
+add_executable(${PROJECT_NAME} ${CXX_SRCS} ${CUDA_SRCS} _main.cu)
 
 target_link_libraries(${PROJECT_NAME}
         PRIVATE m

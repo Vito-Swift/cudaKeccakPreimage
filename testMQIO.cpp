@@ -11,9 +11,6 @@
 #define cbinom2(n) \
     ( ((n) * ((n)+1)) / 2)
 
-#define deg2midx0(vnum) \
-    (cbinom2(vnum) + (vnum))
-
 #define deg2midx1(vnum, var1_idx) \
     (cbinom2(vnum) + (var1_idx))
 
@@ -36,7 +33,7 @@ uint8_t mq_system_init[BMQ_EQ_NUM][BMQ_XVAR_NUM];
 uint8_t mq_lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1];
 uint8_t mq_lin_dep[BLIN_VAR_NUM][BLIN_VAR_NUM + 1];
 uint32_t mq_fvar_idx[RMQ_VAR_NUM] = {0};
-uint32_t reverse_mq_fvar_idx[BLIN_VAR_NUM] = {0xFFFFFFFF};
+uint32_t reverse_mq_fvar_idx[BLIN_VAR_NUM];
 uint8_t mq_system_result[RMQ_EQ_NUM][RMQ_XVAR_NUM];
 
 void reduceLinearSystem(uint8_t lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1],
@@ -82,6 +79,8 @@ void reduceLinearSystem(uint8_t lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1],
             mq_fvar_idx[fvar_offset] = i;
             reverse_mq_fvar_idx[i] = fvar_offset;
             fvar_offset++;
+        } else {
+            reverse_mq_fvar_idx[i] = 0xFFFFFFFF;
         }
     }
 }
@@ -89,109 +88,87 @@ void reduceLinearSystem(uint8_t lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1],
 void reduceMQSystem() {
     uint32_t eq_idx;
     uint32_t var_idx;
-    uint32_t i;
-    uint8_t tmp_multix_2[RMQ_VAR_NUM + 1];
-    for (eq_idx = 0; eq_idx < BMQ_EQ_NUM; eq_idx++) {
+    uint32_t i, j;
+    for (eq_idx = 0; eq_idx < RMQ_EQ_NUM; eq_idx++) {
         memset(mq_system_result[eq_idx], 0, RMQ_XVAR_NUM * sizeof(uint8_t));
+        uint32_t multix_1;
+        uint32_t multix_2;
+        for (multix_1 = 0; multix_1 < BLIN_VAR_NUM; multix_1++) {
+            bool is_multix1_dep = (bool) (reverse_mq_fvar_idx[multix_1] == 0xFFFFFFFF);
 
-        for (var_idx = 0; var_idx < RMQ_VAR_NUM; var_idx++) {
-            memset(tmp_multix_2, 0, RMQ_VAR_NUM * sizeof(uint8_t));
-            uint32_t start_xvar_idx = deg2midx2(0, var_idx);
-            uint32_t end_xvar_idx = deg2midx2(0, var_idx + 1);
+            // modify quadratic part
+            for (multix_2 = multix_1; multix_2 < BLIN_VAR_NUM; multix_2++) {
+                var_idx = deg2midx2(multix_1, multix_2);
+                if (mq_system_init[eq_idx][var_idx]) {
+                    bool is_multix2_dep = (bool) (reverse_mq_fvar_idx[multix_2] == 0xFFFFFFFF);
+                    if (is_multix1_dep && is_multix2_dep) {
+                        // all multiplexers are dependent
+                        for (i = 0; i < RMQ_VAR_NUM; i++)
+                            for (j = 0; j < RMQ_VAR_NUM; j++)
+                                if (mq_lin_dep[multix_1][i] && mq_lin_dep[multix_2][j])
+                                    mq_system_result[eq_idx][deg2midx2(i, j)] ^= 1;
 
-            // check whether the variable has linear dependency to other variables
-            if (reverse_mq_fvar_idx[var_idx] == 0xFFFFFFFF) {
-                // variable has dependency, substitute the mq system with its dependency
-
-                // 1. re-merge quadratic part
-                //    merge liner terms of rhs
-                for (uint32_t xvar_idx = start_xvar_idx; xvar_idx < end_xvar_idx; xvar_idx++) {
-                    if (mq_system_init[eq_idx][xvar_idx]) {
-                        if (reverse_mq_fvar_idx[xvar_idx - start_xvar_idx] == 0xFFFFFFFF) {
+                        if (mq_lin_dep[multix_1][RMQ_VAR_NUM]) {
                             for (i = 0; i < RMQ_VAR_NUM; i++) {
-                                uint32_t fvar_idx = mq_fvar_idx[i];
-                                uint32_t rmq_idx = reverse_mq_fvar_idx[fvar_idx];
-                                if (mq_lin_dep[xvar_idx - start_xvar_idx][fvar_idx])
-                                    tmp_multix_2[rmq_idx] ^= 1;
-                            }
-                            if (mq_lin_dep[xvar_idx - start_xvar_idx][BLIN_VAR_NUM])
-                                tmp_multix_2[RMQ_VAR_NUM] = 1;
-                        } else {
-                            tmp_multix_2[reverse_mq_fvar_idx[xvar_idx - start_xvar_idx]] ^= 1;
-                        }
-                    }
-                }
-                //      loop over linear terms of lhs
-                for (i = 0; i < BLIN_VAR_NUM; i++) {
-                    if (mq_lin_dep[var_idx][i]) {
-                        uint32_t multix_1 = reverse_mq_fvar_idx[mq_lin_dep[var_idx][i]];
-                        uint32_t multix_2;
-                        for (multix_2 = 0; multix_2 < RMQ_VAR_NUM; multix_2++) {
-                            if (tmp_multix_2[multix_2]) {
-                                if (multix_2 >= multix_1)
-                                    mq_system_result[eq_idx][deg2midx2(multix_1, multix_2)] ^= 1;
-                                else
-                                    mq_system_result[eq_idx][deg2midx2(multix_2, multix_1)] ^= 1;
+                                if (mq_lin_dep[multix_2][i])
+                                    mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, i)] ^= 1;
                             }
                         }
-                        if (tmp_multix_2[RMQ_VAR_NUM]) {
-                            // multiply the remainder 1
-                            mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, multix_1)] ^= 1;
-                        }
-                    }
-                }
 
-                // multiply the remainder 1
-                if (mq_lin_dep[var_idx][BLIN_VAR_NUM]) {
-                    uint32_t multix_2;
-                    for (multix_2 = 0; multix_2 < RMQ_VAR_NUM + 1; multix_2++)
-                        mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, multix_2)] ^= tmp_multix_2[multix_2];
-                }
-
-                // 2. remerge linear part
-                if (mq_system_init[eq_idx][deg2midx1(BMQ_VAR_NUM, var_idx)]) {
-                    uint32_t multix_2;
-                    for (multix_2 = 0; multix_2 < RMQ_VAR_NUM + 1; multix_2++)
-                        mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, multix_2)] ^= tmp_multix_2[multix_2];
-                }
-            } else {
-                // variable has no dependency
-                for (uint32_t xvar_idx = start_xvar_idx; xvar_idx < end_xvar_idx; xvar_idx++) {
-                    if (mq_system_init[eq_idx][xvar_idx]) {
-                        if (reverse_mq_fvar_idx[xvar_idx - start_xvar_idx] == 0xFFFFFFFF) {
+                        if (mq_lin_dep[multix_2][RMQ_VAR_NUM]) {
                             for (i = 0; i < RMQ_VAR_NUM; i++) {
-                                uint32_t fvar_idx = mq_fvar_idx[i];
-                                uint32_t rmq_idx = reverse_mq_fvar_idx[fvar_idx];
-                                if (mq_lin_dep[xvar_idx - start_xvar_idx][fvar_idx])
-                                    tmp_multix_2[rmq_idx] ^= 1;
+                                if (mq_lin_dep[multix_1][i])
+                                    mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, i)] ^= 1;
                             }
-                            if (mq_lin_dep[xvar_idx - start_xvar_idx][BLIN_VAR_NUM])
-                                tmp_multix_2[RMQ_VAR_NUM] = 1;
-                        } else {
-                            tmp_multix_2[reverse_mq_fvar_idx[xvar_idx - start_xvar_idx]] ^= 1;
                         }
-                    }
-                }
 
-                uint32_t multix_1 = reverse_mq_fvar_idx[var_idx];
-                uint32_t multix_2;
-                for (multix_2 = 0; multix_2 < RMQ_VAR_NUM; multix_2++) {
-                    if (tmp_multix_2[multix_2]) {
-                        if (multix_2 >= multix_1)
-                            mq_system_result[eq_idx][deg2midx2(multix_1, multix_2)] ^= 1;
+                        if (mq_lin_dep[multix_1][RMQ_VAR_NUM] && mq_lin_dep[multix_2][RMQ_VAR_NUM])
+                            mq_system_result[eq_idx][RMQ_XVAR_NUM - 1] ^= 1;
+
+                    } else if (is_multix1_dep) {
+                        // only multiplexer 1 is dependent
+                        uint32_t v = reverse_mq_fvar_idx[multix_2];
+                        for (i = 0; i < RMQ_VAR_NUM; i++)
+                            if (mq_lin_dep[multix_1][i])
+                                mq_system_result[eq_idx][deg2midx2(i, v)] ^= 1;
+
+                        if (mq_lin_dep[multix_1][RMQ_VAR_NUM])
+                            mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, v)] ^= 1;
+                    } else if (is_multix2_dep) {
+                        // only multiplexer 2 is dependent
+                        uint32_t v = reverse_mq_fvar_idx[multix_1];
+                        for (i = 0; i < RMQ_VAR_NUM; i++)
+                            if (mq_lin_dep[multix_2][i])
+                                mq_system_result[eq_idx][deg2midx2(i, v)] ^= 1;
+
+                        if (mq_lin_dep[multix_2][RMQ_VAR_NUM])
+                            mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, v)] ^= 1;
+                    } else {
+                        // all multiplexers are free variables
+                        uint32_t v1 = reverse_mq_fvar_idx[multix_1];
+                        uint32_t v2 = reverse_mq_fvar_idx[multix_2];
+                        if (v1 >= v2)
+                            mq_system_result[eq_idx][deg2midx2(v2, v1)] ^= 1;
                         else
-                            mq_system_result[eq_idx][deg2midx2(multix_2, multix_1)] ^= 1;
-                    }
-                    if (tmp_multix_2[RMQ_VAR_NUM]) {
-                        // multiply the remainder 1
-                        mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, multix_1)] ^= 1;
+                            mq_system_result[eq_idx][deg2midx2(v1, v2)] ^= 1;
                     }
                 }
-                if (mq_system_init[eq_idx][deg2midx1(BMQ_VAR_NUM, var_idx)])
-                    mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, multix_1)] ^= 1;
+            }
+            var_idx = deg2midx1(BLIN_VAR_NUM, multix_1);
+            if (mq_system_init[eq_idx][var_idx]) {
+                if (is_multix1_dep) {
+                    for (i = 0; i < RMQ_VAR_NUM; i++) {
+                        if (mq_lin_dep[multix_1][i]) {
+                            mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, i)] ^= 1;
+                        }
+                    }
+                } else {
+                    uint32_t v = reverse_mq_fvar_idx[multix_1];
+                    mq_system_result[eq_idx][deg2midx1(RMQ_VAR_NUM, v)] ^= 1;
+                }
             }
         }
-
+        mq_system_result[eq_idx][RMQ_XVAR_NUM - 1] ^= mq_system_init[eq_idx][BMQ_XVAR_NUM - 1];
     }
 }
 
@@ -217,11 +194,11 @@ int main() {
         fclose(fmq);
     }
 
-    printf("[+] read mq analysis from file\n"
-           "\tequation_number: %d\n"
-           "\txvar_number: %d\n"
-           "\tvar_number: %d\n",
-           BMQ_EQ_NUM, xv, BMQ_XVAR_NUM);
+//    printf("[+] read mq analysis from file\n"
+//           "\tequation_number: %d\n"
+//           "\txvar_number: %d\n"
+//           "\tvar_number: %d\n",
+//           BMQ_EQ_NUM, xv, BMQ_XVAR_NUM);
 
     FILE *flin = fopen("../lin_analysis.dat", "r");
     if (flin == NULL) {
@@ -239,17 +216,21 @@ int main() {
 
     reduceLinearSystem(mq_lin_system, mq_fvar_idx);
 
-//    for (uint32_t i = 0; i < BLIN_EQ_NUM; i++) {
-//        for (uint32_t j = 0; j < BLIN_VAR_NUM + 1; j++)
-//            printf("%d", mq_lin_system[i][j]);
+    for (uint32_t i = 0; i < BLIN_EQ_NUM; i++) {
+        for (uint32_t j = 0; j < BLIN_VAR_NUM + 1; j++)
+            printf("%d", mq_lin_system[i][j]);
+        printf("\n");
+    }
+
+//    reduceMQSystem();
+
+//    for (uint32_t i = 0; i < RMQ_VAR_NUM; i++)
+//        printf("%d %d\n", i, mq_fvar_idx[i]);
+//    for (uint32_t i = 0; i < RMQ_EQ_NUM; i++) {
+//        for (uint32_t j = 0; j < RMQ_XVAR_NUM; j++)
+//            printf("%d", mq_system_result[i][j]);
 //        printf("\n");
 //    }
-
-    for (uint32_t i = 0; i < RMQ_VAR_NUM; i++)
-        printf("%d\n", mq_fvar_idx[i]);
-
-    reduceMQSystem();
-
 //    for (uint32_t i = 0; i < BLIN_VAR_NUM; i++) {
 //        bool isLinear = true;
 //        for (uint32_t j = 0; j < RMQ_VAR_NUM; j++) {
@@ -270,10 +251,10 @@ int main() {
 //        if (isConstance)
 //            printf("%d: %d\n", i, mq_lin_dep[i][BLIN_VAR_NUM]);
 //    }
-    printf("[+] read constant linear analysis from file\n"
-           "\tequation_number: %d\n"
-           "\tvar_number: %d\n",
-           BLIN_EQ_NUM, BLIN_VAR_NUM);
+//    printf("[+] read constant linear analysis from file\n"
+//           "\tequation_number: %d\n"
+//           "\tvar_number: %d\n",
+//           BLIN_EQ_NUM, BLIN_VAR_NUM);
 
     return 0;
 }

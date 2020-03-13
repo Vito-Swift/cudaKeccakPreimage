@@ -6,6 +6,8 @@
  * @language: C++/CUDA
  */
 
+#include <cuda_runtime.h>
+
 #include <iostream>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -13,9 +15,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include <cuda_runtime.h>
-
-#include "threadpool.h"
+#include "include/keccak.h"
 
 /* ******************************************************
  * *********** Params and Global Variables **************
@@ -25,60 +25,33 @@
 
 // parameters relates to linear constraints
 #define LIN_CONST_VARNUM 800        // number of variables in linear constraints
-#define LIN_CONST_EQNUM 706
+#define LIN_CONST_EQNUM 707
 #define LIN_ITER_EQNUM 63
-#define LIN_VART_EQNUM 12
 #define LIN_CONST_SYSTEM_SIZE (801 * (LIN_CONST_EQNUM))
-#define LIN_ITER_SYSTEM_SIZE (801 * (LIN_ITER_EQNUM + LIN_VART_EQNUM))
+#define LIN_ITER_SYSTEM_SIZE (801 * (LIN_ITER_EQNUM))
 
 // parameters relates to MQ system
-#define MQ_VAR_NUM 19
-#define MQ_EQ_NUM 32
+#define MQ_VAR_NUM 31
+#define MQ_EQ_NUM 48
 #define MQ_XVAR_NUM ((((MQ_VAR_NUM) * ((MQ_VAR_NUM) + 1)) / 2) + MQ_VAR_NUM + 1)
 #define MQ_SYSTEM_SIZE ((MQ_EQ_NUM) * (MQ_XVAR_NUM))
 
 // parameters relates to base MQ system
 #define BMQ_VAR_NUM 94
-#define BMQ_EQ_NUM 32
+#define BMQ_EQ_NUM 48
 #define BMQ_XVAR_NUM ((((BMQ_VAR_NUM) * ((BMQ_VAR_NUM) + 1)) / 2) + BMQ_VAR_NUM + 1)
-
-// parameters relates to Keccak analysis
-#define ALPHA 0x44E72
-#define BETA 0xBAA20F
-#define DIFF_TOLERANCE 4
-#define RC1 0x80000000
-#define RC2 0x41010000
-#define RC3 0x51010000
-#define RC4 0x00010001
 
 // parameters relates to GPU configuration
 #define GPU_THREADS_PER_BLOCK 64
 #define GPU_BLOCK_PER_STREAM 512
-#define GPU_STREAM_NUM 8
 #define GPU_TOTAL_THREADS ((GPU_STREAM_NUM) * (GPU_THREADS_PER_BLOCK) * (GPU_BLOCK_PER_STREAM))
-
-// parameters relates to CPU threadpool
-#define CPU_THREAD_NUM 20
-
-#define GPU_MQGROUP_NUM 0x100000U       // 2 ** 24
-#define GPU_MQGROUP_THREAD_SLICE ((GPU_MQGROUP_NUM) / (GPU_TOTAL_THREADS))
-
-// use streams to parallel memory copy operation
-cudaStream_t cudaStreams[GPU_STREAM_NUM];
 
 /* ******************************************************
  * *************** Function Prototypes ******************
  * ******************************************************/
-
 typedef struct KeccakSolver {
 
   bool verbose;                        /* decide whether to print out informative messages */
-
-  /* linear constraints that will not alter during iteration */
-  uint8_t const_constraints[LIN_CONST_EQNUM][LIN_CONST_VARNUM + 1];
-
-  /* linear polynomials of which the constant part is being iterated*/
-  uint8_t iterate_polynomials[LIN_ITER_EQNUM][LIN_CONST_VARNUM + 1];
 
   /* iterative term to linearize last round terms */
   uint8_t iterate_terms[LIN_VART_EQNUM][LIN_ITER_EQNUM][LIN_CONST_VARNUM + 1];
@@ -119,6 +92,11 @@ int main() {
  * ************* Function Implementations ***************
  * ******************************************************/
 
+__constance__ uint32_t file_mq_fvar_idx[BMQ_VAR_NUM] = {0};
+__constance__ uint32_t file_reverse_mq_fvar_idx[LIN_CONST_VARNUM] = {0};
+__constance__ uint32_t mq_fvar_idx[MQ_VAR_NUM] = {0};
+__constance__ uint32_t reverse_mq_fvar_idx[MQ_VAR_NUM] = {0};
+
 __host__
 void
 cuda_check(cudaError_t err, const char *file, const int line, bool fatal) {
@@ -155,13 +133,6 @@ loadConstantSystemToDevice(KeccakSolver *keccakSolver) {
     }
 
     uint32_t eq_idx, var_idx;
-    for (eq_idx = 0; eq_idx < LIN_CONST_EQNUM; eq_idx++) {
-        fgets(line, sizeof(line), constFile);
-        for (var_idx = 0; var_idx < LIN_CONST_VARNUM + 1; var_idx++) {
-            keccakSolver->const_constraints[eq_idx][var_idx] = (uint8_t)(line[var_idx] - '0');
-        }
-    }
-
     if (keccakSolver->verbose) {
         printf("[+] loaded constant constraints constraints from file\n");
     }
@@ -188,13 +159,6 @@ loadVariateSystemToHost(KeccakSolver *keccakSolver) {
         exit(1);
     }
 
-    for (eq_idx = 0; eq_idx < LIN_VART_EQNUM; eq_idx++) {
-        fgets(line, sizeof(line), vartFile);
-        for (var_idx = 0; var_idx < LIN_CONST_VARNUM + 1; var_idx++) {
-            keccakSolver->iterate_polynomials[eq_idx][var_idx] = (uint8_t)(line[var_idx] - '0');
-        }
-    }
-
     if (keccakSolver->verbose) {
         printf("[+] loaded iterative constraints from file\n");
     }
@@ -213,15 +177,6 @@ __device__ static __forceinline__
 uint32_t
 ctz(uint32_t c) {
     return __clz(__brev(c));
-}
-
-/* function: ROR32
- * usage: perform right-rotate permutation
- */
-__device__ __forceinline__
-uint32_t
-ROR32(uint32_t x, uint32_t a) {
-    return (x >> a) | (x << (32 - a));
 }
 
 /* function: reducedRREF(linsys)
@@ -292,11 +247,9 @@ extractSolution(uint8_t *linsys, uint8_t *solution) {
                 break;
             }
         }
-
         if (row_num == eq_idx) {
             continue;
         }
-
         solution[var_idx] = linsys[eq_idx * col_num + col_num - 1];
     }
 
@@ -311,7 +264,8 @@ extractSolution(uint8_t *linsys, uint8_t *solution) {
  */
 __device__ static __forceinline__
 void
-solveLinearSystem(uint8_t linsys[LIN_CONST_VARNUM * (LIN_CONST_VARNUM + 1)], uint8_t *solution) {
+solveLinearSystem(uint8_t linsys[LIN_CONST_VARNUM * (LIN_CONST_VARNUM + 1)],
+                  uint8_t *solution) {
     reducedRREF(linsys);
     extractSolution(linsys, solution);
 }
@@ -321,9 +275,7 @@ void
 diffEq(uint8_t *func, uint32_t idx, bool *result) {
     for (uint32_t i = 0; i < MQ_VAR_NUM + 1; i++)
         result[i] = 0x0;
-
     result[MQ_VAR_NUM] = func[MQ_XVAR_NUM - 1 - (MQ_VAR_NUM - idx)];
-
     uint32_t cursor = MQ_XVAR_NUM - MQ_VAR_NUM - 1;
     uint32_t i, j;
     uint32_t bound = (0 == idx) ? 1 : idx;
@@ -346,8 +298,12 @@ __device__ static __forceinline__
 void
 findPartialDerivs(uint8_t *mqs, bool derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 1]) {
     uint32_t eq_idx, var_idx;
-    for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
-        for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+    for (
+        eq_idx = 0;
+        eq_idx < MQ_EQ_NUM; eq_idx++) {
+        for (
+            var_idx = 0;
+            var_idx < MQ_VAR_NUM; var_idx++) {
             diffEq(mqs + eq_idx * MQ_XVAR_NUM, var_idx, derivs[eq_idx][var_idx]);
         }
     }
@@ -367,11 +323,11 @@ findPartialDerivs(uint8_t *mqs, bool derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 
  */
 __global__
 void
-kernelSolveMQSystems(uint8_t *mq_input_buffer, uint8_t *it_input_buffer,
-                     uint8_t *const_buffer, uint32_t *output_buffer) {
+kernelIteration(uint64_t global_guessingbits_start,
+                uint64_t global_guessingbits_end,
+                uint8_t *mq_input_buffer, uint8_t *it_input_buffer,
+                uint8_t *const_buffer, uint32_t *output_buffer) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t mq_input_buffer_offset = MQ_SYSTEM_SIZE * tid;
-    uint32_t it_input_buffer_offset = LIN_ITER_SYSTEM_SIZE * tid;
     uint32_t output_buffer_offset = 25 * tid;
 
     bool derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 1];
@@ -387,9 +343,6 @@ kernelSolveMQSystems(uint8_t *mq_input_buffer, uint8_t *it_input_buffer,
 
     uint32_t A[25];
     uint32_t initA[25];
-    uint32_t tmpA[25];
-    uint32_t C[5];
-    uint32_t D[5];
 
     // fill coefficient in mq_solution
     memset(mq_solution, 0, sizeof(mq_solution));
@@ -495,773 +448,12 @@ kernelSolveMQSystems(uint8_t *mq_input_buffer, uint8_t *it_input_buffer,
             }
             memcpy(initA, A, sizeof(initA));
 
-            // Round 1 start here
-            // Unrolled THETA operation
-            C[0] = A[5];
-            C[0] = C[0] ^ A[6];
-            C[0] = C[0] ^ A[7];
-            C[0] = C[0] ^ A[8];
-            C[0] = C[0] ^ A[9];
-            D[0] = ROR32(C[0], 1);
-
-            C[1] = A[10];
-            C[1] = C[1] ^ A[11];
-            C[1] = C[1] ^ A[12];
-            C[1] = C[1] ^ A[13];
-            C[1] = C[1] ^ A[14];
-            D[1] = ROR32(C[1], 1);
-
-            C[2] = A[15];
-            C[2] = C[2] ^ A[16];
-            C[2] = C[2] ^ A[17];
-            C[2] = C[2] ^ A[18];
-            C[2] = C[2] ^ A[19];
-            D[2] = ROR32(C[2], 1);
-
-            C[3] = A[20];
-            C[3] = C[3] ^ A[21];
-            C[3] = C[3] ^ A[22];
-            C[3] = C[3] ^ A[23];
-            C[3] = C[3] ^ A[24];
-            D[3] = ROR32(C[3], 1);
-
-            C[4] = A[0];
-            C[4] = C[4] ^ A[1];
-            C[4] = C[4] ^ A[2];
-            C[4] = C[4] ^ A[3];
-            C[4] = C[4] ^ A[4];
-            D[4] = ROR32(C[4], 1);
-
-            A[0] = A[0] ^ C[3] ^ D[0];
-            A[1] = A[1] ^ C[3] ^ D[0];
-            A[2] = A[2] ^ C[3] ^ D[0];
-            A[3] = A[3] ^ C[3] ^ D[0];
-            A[4] = A[4] ^ C[3] ^ D[0];
-
-            A[5] = A[5] ^ C[4] ^ D[1];
-            A[6] = A[6] ^ C[4] ^ D[1];
-            A[7] = A[7] ^ C[4] ^ D[1];
-            A[8] = A[8] ^ C[4] ^ D[1];
-            A[9] = A[9] ^ C[4] ^ D[1];
-
-            A[10] = A[10] ^ C[0] ^ D[2];
-            A[11] = A[11] ^ C[0] ^ D[2];
-            A[12] = A[12] ^ C[0] ^ D[2];
-            A[13] = A[13] ^ C[0] ^ D[2];
-            A[14] = A[14] ^ C[0] ^ D[2];
-
-            A[15] = A[15] ^ C[1] ^ D[3];
-            A[16] = A[16] ^ C[1] ^ D[3];
-            A[17] = A[17] ^ C[1] ^ D[3];
-            A[18] = A[18] ^ C[1] ^ D[3];
-            A[19] = A[19] ^ C[1] ^ D[3];
-
-            A[20] = A[20] ^ C[2] ^ D[4];
-            A[21] = A[21] ^ C[2] ^ D[4];
-            A[22] = A[22] ^ C[2] ^ D[4];
-            A[23] = A[23] ^ C[2] ^ D[4];
-            A[24] = A[24] ^ C[2] ^ D[4];
-
-            // Unrolled RHO + PI operation
-            // tmpA[0] = A[0];
-            tmpA[1] = A[1];
-            tmpA[2] = A[2];
-            tmpA[3] = A[3];
-            tmpA[4] = A[4];
-            tmpA[5] = A[5];
-            tmpA[6] = A[6];
-            tmpA[7] = A[7];
-            tmpA[8] = A[8];
-            tmpA[9] = A[9];
-            tmpA[10] = A[10];
-            tmpA[11] = A[11];
-            tmpA[12] = A[12];
-            tmpA[13] = A[13];
-            tmpA[14] = A[14];
-            tmpA[15] = A[15];
-            tmpA[16] = A[16];
-            tmpA[17] = A[17];
-            tmpA[18] = A[18];
-            tmpA[19] = A[19];
-            tmpA[20] = A[20];
-            tmpA[21] = A[21];
-            tmpA[22] = A[22];
-            tmpA[23] = A[23];
-            tmpA[24] = A[24];
-
-            // A[0] = tmpA[0];
-            A[1] = ROR32(tmpA[15], 28);
-            A[2] = ROR32(tmpA[5], 1);
-            A[3] = ROR32(tmpA[20], 27);
-            A[4] = ROR32(tmpA[10], 30);
-
-            A[5] = ROR32(tmpA[6], 12);
-            A[6] = ROR32(tmpA[21], 20);
-            A[7] = ROR32(tmpA[11], 6);
-            A[8] = ROR32(tmpA[1], 4);
-            A[9] = ROR32(tmpA[16], 23);
-
-            A[10] = ROR32(tmpA[12], 11);
-            A[11] = ROR32(tmpA[2], 3);
-            A[12] = ROR32(tmpA[17], 25);
-            A[13] = ROR32(tmpA[7], 10);
-            A[14] = ROR32(tmpA[22], 7);
-
-            A[15] = ROR32(tmpA[18], 21);
-            A[16] = ROR32(tmpA[8], 13);
-            A[17] = ROR32(tmpA[23], 8);
-            A[18] = ROR32(tmpA[13], 15);
-            A[19] = ROR32(tmpA[3], 9);
-
-            A[20] = ROR32(tmpA[24], 14);
-            A[21] = ROR32(tmpA[14], 29);
-            A[22] = ROR32(tmpA[4], 18);
-            A[23] = ROR32(tmpA[19], 24);
-            A[24] = ROR32(tmpA[9], 2);
-
-            // Unrolled CHI operation
-            C[0] = A[0] ^ ((~A[5]) & (A[10]));
-            C[1] = A[5] ^ ((~A[10]) & (A[15]));
-            C[2] = A[10] ^ ((~A[15]) & (A[20]));
-            C[3] = A[15] ^ ((~A[20]) & (A[0]));
-            C[4] = A[20] ^ ((~A[0]) & (A[5]));
-            A[0] = C[0];
-            A[5] = C[1];
-            A[10] = C[2];
-            A[15] = C[3];
-            A[20] = C[4];
-
-            C[0] = A[1] ^ ((~A[6]) & (A[11]));
-            C[1] = A[6] ^ ((~A[11]) & (A[16]));
-            C[2] = A[11] ^ ((~A[16]) & (A[21]));
-            C[3] = A[16] ^ ((~A[21]) & (A[1]));
-            C[4] = A[21] ^ ((~A[1]) & (A[6]));
-            A[1] = C[0];
-            A[6] = C[1];
-            A[11] = C[2];
-            A[16] = C[3];
-            A[21] = C[4];
-
-            C[0] = A[2] ^ ((~A[7]) & (A[12]));
-            C[1] = A[7] ^ ((~A[12]) & (A[17]));
-            C[2] = A[12] ^ ((~A[17]) & (A[22]));
-            C[3] = A[17] ^ ((~A[22]) & (A[2]));
-            C[4] = A[22] ^ ((~A[2]) & (A[7]));
-            A[2] = C[0];
-            A[7] = C[1];
-            A[12] = C[2];
-            A[17] = C[3];
-            A[22] = C[4];
-
-            C[0] = A[3] ^ ((~A[8]) & (A[13]));
-            C[1] = A[8] ^ ((~A[13]) & (A[18]));
-            C[2] = A[13] ^ ((~A[18]) & (A[23]));
-            C[3] = A[18] ^ ((~A[23]) & (A[3]));
-            C[4] = A[23] ^ ((~A[3]) & (A[8]));
-            A[3] = C[0];
-            A[8] = C[1];
-            A[13] = C[2];
-            A[18] = C[3];
-            A[23] = C[4];
-
-            C[0] = A[4] ^ ((~A[9]) & (A[14]));
-            C[1] = A[9] ^ ((~A[14]) & (A[19]));
-            C[2] = A[14] ^ ((~A[19]) & (A[24]));
-            C[3] = A[19] ^ ((~A[24]) & (A[4]));
-            C[4] = A[24] ^ ((~A[4]) & (A[9]));
-            A[4] = C[0];
-            A[9] = C[1];
-            A[14] = C[2];
-            A[19] = C[3];
-            A[24] = C[4];
-
-            A[0] = A[0] ^ RC1;
-            // --- Round 1 end here ---
-
-            // --- Round 2 start here ---
-            // Unrolled THETA operation
-            C[0] = A[5];
-            C[0] = C[0] ^ A[6];
-            C[0] = C[0] ^ A[7];
-            C[0] = C[0] ^ A[8];
-            C[0] = C[0] ^ A[9];
-            D[0] = ROR32(C[0], 1);
-
-            C[1] = A[10];
-            C[1] = C[1] ^ A[11];
-            C[1] = C[1] ^ A[12];
-            C[1] = C[1] ^ A[13];
-            C[1] = C[1] ^ A[14];
-            D[1] = ROR32(C[1], 1);
-
-            C[2] = A[15];
-            C[2] = C[2] ^ A[16];
-            C[2] = C[2] ^ A[17];
-            C[2] = C[2] ^ A[18];
-            C[2] = C[2] ^ A[19];
-            D[2] = ROR32(C[2], 1);
-
-            C[3] = A[20];
-            C[3] = C[3] ^ A[21];
-            C[3] = C[3] ^ A[22];
-            C[3] = C[3] ^ A[23];
-            C[3] = C[3] ^ A[24];
-            D[3] = ROR32(C[3], 1);
-
-            C[4] = A[0];
-            C[4] = C[4] ^ A[1];
-            C[4] = C[4] ^ A[2];
-            C[4] = C[4] ^ A[3];
-            C[4] = C[4] ^ A[4];
-            D[4] = ROR32(C[4], 1);
-
-            A[0] = A[0] ^ C[3] ^ D[0];
-            A[1] = A[1] ^ C[3] ^ D[0];
-            A[2] = A[2] ^ C[3] ^ D[0];
-            A[3] = A[3] ^ C[3] ^ D[0];
-            A[4] = A[4] ^ C[3] ^ D[0];
-
-            A[5] = A[5] ^ C[4] ^ D[1];
-            A[6] = A[6] ^ C[4] ^ D[1];
-            A[7] = A[7] ^ C[4] ^ D[1];
-            A[8] = A[8] ^ C[4] ^ D[1];
-            A[9] = A[9] ^ C[4] ^ D[1];
-
-            A[10] = A[10] ^ C[0] ^ D[2];
-            A[11] = A[11] ^ C[0] ^ D[2];
-            A[12] = A[12] ^ C[0] ^ D[2];
-            A[13] = A[13] ^ C[0] ^ D[2];
-            A[14] = A[14] ^ C[0] ^ D[2];
-
-            A[15] = A[15] ^ C[1] ^ D[3];
-            A[16] = A[16] ^ C[1] ^ D[3];
-            A[17] = A[17] ^ C[1] ^ D[3];
-            A[18] = A[18] ^ C[1] ^ D[3];
-            A[19] = A[19] ^ C[1] ^ D[3];
-
-            A[20] = A[20] ^ C[2] ^ D[4];
-            A[21] = A[21] ^ C[2] ^ D[4];
-            A[22] = A[22] ^ C[2] ^ D[4];
-            A[23] = A[23] ^ C[2] ^ D[4];
-            A[24] = A[24] ^ C[2] ^ D[4];
-
-            // Unrolled RHO + PI operation
-            // tmpA[0] = A[0];
-            tmpA[1] = A[1];
-            tmpA[2] = A[2];
-            tmpA[3] = A[3];
-            tmpA[4] = A[4];
-            tmpA[5] = A[5];
-            tmpA[6] = A[6];
-            tmpA[7] = A[7];
-            tmpA[8] = A[8];
-            tmpA[9] = A[9];
-            tmpA[10] = A[10];
-            tmpA[11] = A[11];
-            tmpA[12] = A[12];
-            tmpA[13] = A[13];
-            tmpA[14] = A[14];
-            tmpA[15] = A[15];
-            tmpA[16] = A[16];
-            tmpA[17] = A[17];
-            tmpA[18] = A[18];
-            tmpA[19] = A[19];
-            tmpA[20] = A[20];
-            tmpA[21] = A[21];
-            tmpA[22] = A[22];
-            tmpA[23] = A[23];
-            tmpA[24] = A[24];
-
-            // A[0] = tmpA[0];
-            A[1] = ROR32(tmpA[15], 28);
-            A[2] = ROR32(tmpA[5], 1);
-            A[3] = ROR32(tmpA[20], 27);
-            A[4] = ROR32(tmpA[10], 30);
-
-            A[5] = ROR32(tmpA[6], 12);
-            A[6] = ROR32(tmpA[21], 20);
-            A[7] = ROR32(tmpA[11], 6);
-            A[8] = ROR32(tmpA[1], 4);
-            A[9] = ROR32(tmpA[16], 23);
-
-            A[10] = ROR32(tmpA[12], 11);
-            A[11] = ROR32(tmpA[2], 3);
-            A[12] = ROR32(tmpA[17], 25);
-            A[13] = ROR32(tmpA[7], 10);
-            A[14] = ROR32(tmpA[22], 7);
-
-            A[15] = ROR32(tmpA[18], 21);
-            A[16] = ROR32(tmpA[8], 13);
-            A[17] = ROR32(tmpA[23], 8);
-            A[18] = ROR32(tmpA[13], 15);
-            A[19] = ROR32(tmpA[3], 9);
-
-            A[20] = ROR32(tmpA[24], 14);
-            A[21] = ROR32(tmpA[14], 29);
-            A[22] = ROR32(tmpA[4], 18);
-            A[23] = ROR32(tmpA[19], 24);
-            A[24] = ROR32(tmpA[9], 2);
-
-            // Unrolled CHI operation
-            C[0] = A[0] ^ ((~A[5]) & (A[10]));
-            C[1] = A[5] ^ ((~A[10]) & (A[15]));
-            C[2] = A[10] ^ ((~A[15]) & (A[20]));
-            C[3] = A[15] ^ ((~A[20]) & (A[0]));
-            C[4] = A[20] ^ ((~A[0]) & (A[5]));
-            A[0] = C[0];
-            A[5] = C[1];
-            A[10] = C[2];
-            A[15] = C[3];
-            A[20] = C[4];
-
-            C[0] = A[1] ^ ((~A[6]) & (A[11]));
-            C[1] = A[6] ^ ((~A[11]) & (A[16]));
-            C[2] = A[11] ^ ((~A[16]) & (A[21]));
-            C[3] = A[16] ^ ((~A[21]) & (A[1]));
-            C[4] = A[21] ^ ((~A[1]) & (A[6]));
-            A[1] = C[0];
-            A[6] = C[1];
-            A[11] = C[2];
-            A[16] = C[3];
-            A[21] = C[4];
-
-            C[0] = A[2] ^ ((~A[7]) & (A[12]));
-            C[1] = A[7] ^ ((~A[12]) & (A[17]));
-            C[2] = A[12] ^ ((~A[17]) & (A[22]));
-            C[3] = A[17] ^ ((~A[22]) & (A[2]));
-            C[4] = A[22] ^ ((~A[2]) & (A[7]));
-            A[2] = C[0];
-            A[7] = C[1];
-            A[12] = C[2];
-            A[17] = C[3];
-            A[22] = C[4];
-
-            C[0] = A[3] ^ ((~A[8]) & (A[13]));
-            C[1] = A[8] ^ ((~A[13]) & (A[18]));
-            C[2] = A[13] ^ ((~A[18]) & (A[23]));
-            C[3] = A[18] ^ ((~A[23]) & (A[3]));
-            C[4] = A[23] ^ ((~A[3]) & (A[8]));
-            A[3] = C[0];
-            A[8] = C[1];
-            A[13] = C[2];
-            A[18] = C[3];
-            A[23] = C[4];
-
-            C[0] = A[4] ^ ((~A[9]) & (A[14]));
-            C[1] = A[9] ^ ((~A[14]) & (A[19]));
-            C[2] = A[14] ^ ((~A[19]) & (A[24]));
-            C[3] = A[19] ^ ((~A[24]) & (A[4]));
-            C[4] = A[24] ^ ((~A[4]) & (A[9]));
-            A[4] = C[0];
-            A[9] = C[1];
-            A[14] = C[2];
-            A[19] = C[3];
-            A[24] = C[4];
-
-            A[0] = A[0] ^ RC2;
-            // --- Round 2 end here ---
-
-            // --- Round 3 start here ---
-            // Unrolled THETA operation
-            C[0] = A[5];
-            C[0] = C[0] ^ A[6];
-            C[0] = C[0] ^ A[7];
-            C[0] = C[0] ^ A[8];
-            C[0] = C[0] ^ A[9];
-            D[0] = ROR32(C[0], 1);
-
-            C[1] = A[10];
-            C[1] = C[1] ^ A[11];
-            C[1] = C[1] ^ A[12];
-            C[1] = C[1] ^ A[13];
-            C[1] = C[1] ^ A[14];
-            D[1] = ROR32(C[1], 1);
-
-            C[2] = A[15];
-            C[2] = C[2] ^ A[16];
-            C[2] = C[2] ^ A[17];
-            C[2] = C[2] ^ A[18];
-            C[2] = C[2] ^ A[19];
-            D[2] = ROR32(C[2], 1);
-
-            C[3] = A[20];
-            C[3] = C[3] ^ A[21];
-            C[3] = C[3] ^ A[22];
-            C[3] = C[3] ^ A[23];
-            C[3] = C[3] ^ A[24];
-            D[3] = ROR32(C[3], 1);
-
-            C[4] = A[0];
-            C[4] = C[4] ^ A[1];
-            C[4] = C[4] ^ A[2];
-            C[4] = C[4] ^ A[3];
-            C[4] = C[4] ^ A[4];
-            D[4] = ROR32(C[4], 1);
-
-            A[0] = A[0] ^ C[3] ^ D[0];
-            A[1] = A[1] ^ C[3] ^ D[0];
-            A[2] = A[2] ^ C[3] ^ D[0];
-            A[3] = A[3] ^ C[3] ^ D[0];
-            A[4] = A[4] ^ C[3] ^ D[0];
-
-            A[5] = A[5] ^ C[4] ^ D[1];
-            A[6] = A[6] ^ C[4] ^ D[1];
-            A[7] = A[7] ^ C[4] ^ D[1];
-            A[8] = A[8] ^ C[4] ^ D[1];
-            A[9] = A[9] ^ C[4] ^ D[1];
-
-            A[10] = A[10] ^ C[0] ^ D[2];
-            A[11] = A[11] ^ C[0] ^ D[2];
-            A[12] = A[12] ^ C[0] ^ D[2];
-            A[13] = A[13] ^ C[0] ^ D[2];
-            A[14] = A[14] ^ C[0] ^ D[2];
-
-            A[15] = A[15] ^ C[1] ^ D[3];
-            A[16] = A[16] ^ C[1] ^ D[3];
-            A[17] = A[17] ^ C[1] ^ D[3];
-            A[18] = A[18] ^ C[1] ^ D[3];
-            A[19] = A[19] ^ C[1] ^ D[3];
-
-            A[20] = A[20] ^ C[2] ^ D[4];
-            A[21] = A[21] ^ C[2] ^ D[4];
-            A[22] = A[22] ^ C[2] ^ D[4];
-            A[23] = A[23] ^ C[2] ^ D[4];
-            A[24] = A[24] ^ C[2] ^ D[4];
-
-            // Unrolled RHO + PI operation
-            // tmpA[0] = A[0];
-            tmpA[1] = A[1];
-            tmpA[2] = A[2];
-            tmpA[3] = A[3];
-            tmpA[4] = A[4];
-            tmpA[5] = A[5];
-            tmpA[6] = A[6];
-            tmpA[7] = A[7];
-            tmpA[8] = A[8];
-            tmpA[9] = A[9];
-            tmpA[10] = A[10];
-            tmpA[11] = A[11];
-            tmpA[12] = A[12];
-            tmpA[13] = A[13];
-            tmpA[14] = A[14];
-            tmpA[15] = A[15];
-            tmpA[16] = A[16];
-            tmpA[17] = A[17];
-            tmpA[18] = A[18];
-            tmpA[19] = A[19];
-            tmpA[20] = A[20];
-            tmpA[21] = A[21];
-            tmpA[22] = A[22];
-            tmpA[23] = A[23];
-            tmpA[24] = A[24];
-
-            // A[0] = tmpA[0];
-            A[1] = ROR32(tmpA[15], 28);
-            A[2] = ROR32(tmpA[5], 1);
-            A[3] = ROR32(tmpA[20], 27);
-            A[4] = ROR32(tmpA[10], 30);
-
-            A[5] = ROR32(tmpA[6], 12);
-            A[6] = ROR32(tmpA[21], 20);
-            A[7] = ROR32(tmpA[11], 6);
-            A[8] = ROR32(tmpA[1], 4);
-            A[9] = ROR32(tmpA[16], 23);
-
-            A[10] = ROR32(tmpA[12], 11);
-            A[11] = ROR32(tmpA[2], 3);
-            A[12] = ROR32(tmpA[17], 25);
-            A[13] = ROR32(tmpA[7], 10);
-            A[14] = ROR32(tmpA[22], 7);
-
-            A[15] = ROR32(tmpA[18], 21);
-            A[16] = ROR32(tmpA[8], 13);
-            A[17] = ROR32(tmpA[23], 8);
-            A[18] = ROR32(tmpA[13], 15);
-            A[19] = ROR32(tmpA[3], 9);
-
-            A[20] = ROR32(tmpA[24], 14);
-            A[21] = ROR32(tmpA[14], 29);
-            A[22] = ROR32(tmpA[4], 18);
-            A[23] = ROR32(tmpA[19], 24);
-            A[24] = ROR32(tmpA[9], 2);
-
-            // Unrolled CHI operation
-            C[0] = A[0] ^ ((~A[5]) & (A[10]));
-            C[1] = A[5] ^ ((~A[10]) & (A[15]));
-            C[2] = A[10] ^ ((~A[15]) & (A[20]));
-            C[3] = A[15] ^ ((~A[20]) & (A[0]));
-            C[4] = A[20] ^ ((~A[0]) & (A[5]));
-            A[0] = C[0];
-            A[5] = C[1];
-            A[10] = C[2];
-            A[15] = C[3];
-            A[20] = C[4];
-
-            C[0] = A[1] ^ ((~A[6]) & (A[11]));
-            C[1] = A[6] ^ ((~A[11]) & (A[16]));
-            C[2] = A[11] ^ ((~A[16]) & (A[21]));
-            C[3] = A[16] ^ ((~A[21]) & (A[1]));
-            C[4] = A[21] ^ ((~A[1]) & (A[6]));
-            A[1] = C[0];
-            A[6] = C[1];
-            A[11] = C[2];
-            A[16] = C[3];
-            A[21] = C[4];
-
-            C[0] = A[2] ^ ((~A[7]) & (A[12]));
-            C[1] = A[7] ^ ((~A[12]) & (A[17]));
-            C[2] = A[12] ^ ((~A[17]) & (A[22]));
-            C[3] = A[17] ^ ((~A[22]) & (A[2]));
-            C[4] = A[22] ^ ((~A[2]) & (A[7]));
-            A[2] = C[0];
-            A[7] = C[1];
-            A[12] = C[2];
-            A[17] = C[3];
-            A[22] = C[4];
-
-            C[0] = A[3] ^ ((~A[8]) & (A[13]));
-            C[1] = A[8] ^ ((~A[13]) & (A[18]));
-            C[2] = A[13] ^ ((~A[18]) & (A[23]));
-            C[3] = A[18] ^ ((~A[23]) & (A[3]));
-            C[4] = A[23] ^ ((~A[3]) & (A[8]));
-            A[3] = C[0];
-            A[8] = C[1];
-            A[13] = C[2];
-            A[18] = C[3];
-            A[23] = C[4];
-
-            C[0] = A[4] ^ ((~A[9]) & (A[14]));
-            C[1] = A[9] ^ ((~A[14]) & (A[19]));
-            C[2] = A[14] ^ ((~A[19]) & (A[24]));
-            C[3] = A[19] ^ ((~A[24]) & (A[4]));
-            C[4] = A[24] ^ ((~A[4]) & (A[9]));
-            A[4] = C[0];
-            A[9] = C[1];
-            A[14] = C[2];
-            A[19] = C[3];
-            A[24] = C[4];
-
-            A[0] = A[0] ^ RC3;
-            // --- Round 3 end here ---
-
-            // --- Round 4 start here ---
-            // Unrolled THETA operation
-            C[0] = A[5];
-            C[0] = C[0] ^ A[6];
-            C[0] = C[0] ^ A[7];
-            C[0] = C[0] ^ A[8];
-            C[0] = C[0] ^ A[9];
-            D[0] = ROR32(C[0], 1);
-
-            C[1] = A[10];
-            C[1] = C[1] ^ A[11];
-            C[1] = C[1] ^ A[12];
-            C[1] = C[1] ^ A[13];
-            C[1] = C[1] ^ A[14];
-            D[1] = ROR32(C[1], 1);
-
-            C[2] = A[15];
-            C[2] = C[2] ^ A[16];
-            C[2] = C[2] ^ A[17];
-            C[2] = C[2] ^ A[18];
-            C[2] = C[2] ^ A[19];
-            D[2] = ROR32(C[2], 1);
-
-            C[3] = A[20];
-            C[3] = C[3] ^ A[21];
-            C[3] = C[3] ^ A[22];
-            C[3] = C[3] ^ A[23];
-            C[3] = C[3] ^ A[24];
-            D[3] = ROR32(C[3], 1);
-
-            C[4] = A[0];
-            C[4] = C[4] ^ A[1];
-            C[4] = C[4] ^ A[2];
-            C[4] = C[4] ^ A[3];
-            C[4] = C[4] ^ A[4];
-            D[4] = ROR32(C[4], 1);
-
-            A[0] = A[0] ^ C[3] ^ D[0];
-            A[1] = A[1] ^ C[3] ^ D[0];
-            A[2] = A[2] ^ C[3] ^ D[0];
-            A[3] = A[3] ^ C[3] ^ D[0];
-            A[4] = A[4] ^ C[3] ^ D[0];
-
-            A[5] = A[5] ^ C[4] ^ D[1];
-            A[6] = A[6] ^ C[4] ^ D[1];
-            A[7] = A[7] ^ C[4] ^ D[1];
-            A[8] = A[8] ^ C[4] ^ D[1];
-            A[9] = A[9] ^ C[4] ^ D[1];
-
-            A[10] = A[10] ^ C[0] ^ D[2];
-            A[11] = A[11] ^ C[0] ^ D[2];
-            A[12] = A[12] ^ C[0] ^ D[2];
-            A[13] = A[13] ^ C[0] ^ D[2];
-            A[14] = A[14] ^ C[0] ^ D[2];
-
-            A[15] = A[15] ^ C[1] ^ D[3];
-            A[16] = A[16] ^ C[1] ^ D[3];
-            A[17] = A[17] ^ C[1] ^ D[3];
-            A[18] = A[18] ^ C[1] ^ D[3];
-            A[19] = A[19] ^ C[1] ^ D[3];
-
-            A[20] = A[20] ^ C[2] ^ D[4];
-            A[21] = A[21] ^ C[2] ^ D[4];
-            A[22] = A[22] ^ C[2] ^ D[4];
-            A[23] = A[23] ^ C[2] ^ D[4];
-            A[24] = A[24] ^ C[2] ^ D[4];
-
-            // Unrolled RHO + PI operation
-            // tmpA[0] = A[0];
-            tmpA[1] = A[1];
-            tmpA[2] = A[2];
-            tmpA[3] = A[3];
-            tmpA[4] = A[4];
-            tmpA[5] = A[5];
-            tmpA[6] = A[6];
-            tmpA[7] = A[7];
-            tmpA[8] = A[8];
-            tmpA[9] = A[9];
-            tmpA[10] = A[10];
-            tmpA[11] = A[11];
-            tmpA[12] = A[12];
-            tmpA[13] = A[13];
-            tmpA[14] = A[14];
-            tmpA[15] = A[15];
-            tmpA[16] = A[16];
-            tmpA[17] = A[17];
-            tmpA[18] = A[18];
-            tmpA[19] = A[19];
-            tmpA[20] = A[20];
-            tmpA[21] = A[21];
-            tmpA[22] = A[22];
-            tmpA[23] = A[23];
-            tmpA[24] = A[24];
-
-            // A[0] = tmpA[0];
-            A[1] = ROR32(tmpA[15], 28);
-            A[2] = ROR32(tmpA[5], 1);
-            A[3] = ROR32(tmpA[20], 27);
-            A[4] = ROR32(tmpA[10], 30);
-
-            A[5] = ROR32(tmpA[6], 12);
-            A[6] = ROR32(tmpA[21], 20);
-            A[7] = ROR32(tmpA[11], 6);
-            A[8] = ROR32(tmpA[1], 4);
-            A[9] = ROR32(tmpA[16], 23);
-
-            A[10] = ROR32(tmpA[12], 11);
-            A[11] = ROR32(tmpA[2], 3);
-            A[12] = ROR32(tmpA[17], 25);
-            A[13] = ROR32(tmpA[7], 10);
-            A[14] = ROR32(tmpA[22], 7);
-
-            A[15] = ROR32(tmpA[18], 21);
-            A[16] = ROR32(tmpA[8], 13);
-            A[17] = ROR32(tmpA[23], 8);
-            A[18] = ROR32(tmpA[13], 15);
-            A[19] = ROR32(tmpA[3], 9);
-
-            A[20] = ROR32(tmpA[24], 14);
-            A[21] = ROR32(tmpA[14], 29);
-            A[22] = ROR32(tmpA[4], 18);
-            A[23] = ROR32(tmpA[19], 24);
-            A[24] = ROR32(tmpA[9], 2);
-
-            // Unrolled CHI operation
-            C[0] = A[0] ^ ((~A[5]) & (A[10]));
-            C[1] = A[5] ^ ((~A[10]) & (A[15]));
-            C[2] = A[10] ^ ((~A[15]) & (A[20]));
-            C[3] = A[15] ^ ((~A[20]) & (A[0]));
-            C[4] = A[20] ^ ((~A[0]) & (A[5]));
-            A[0] = C[0];
-            A[5] = C[1];
-            A[10] = C[2];
-            A[15] = C[3];
-            A[20] = C[4];
-
-            C[0] = A[1] ^ ((~A[6]) & (A[11]));
-            C[1] = A[6] ^ ((~A[11]) & (A[16]));
-            C[2] = A[11] ^ ((~A[16]) & (A[21]));
-            C[3] = A[16] ^ ((~A[21]) & (A[1]));
-            C[4] = A[21] ^ ((~A[1]) & (A[6]));
-            A[1] = C[0];
-            A[6] = C[1];
-            A[11] = C[2];
-            A[16] = C[3];
-            A[21] = C[4];
-
-            C[0] = A[2] ^ ((~A[7]) & (A[12]));
-            C[1] = A[7] ^ ((~A[12]) & (A[17]));
-            C[2] = A[12] ^ ((~A[17]) & (A[22]));
-            C[3] = A[17] ^ ((~A[22]) & (A[2]));
-            C[4] = A[22] ^ ((~A[2]) & (A[7]));
-            A[2] = C[0];
-            A[7] = C[1];
-            A[12] = C[2];
-            A[17] = C[3];
-            A[22] = C[4];
-
-            C[0] = A[3] ^ ((~A[8]) & (A[13]));
-            C[1] = A[8] ^ ((~A[13]) & (A[18]));
-            C[2] = A[13] ^ ((~A[18]) & (A[23]));
-            C[3] = A[18] ^ ((~A[23]) & (A[3]));
-            C[4] = A[23] ^ ((~A[3]) & (A[8]));
-            A[3] = C[0];
-            A[8] = C[1];
-            A[13] = C[2];
-            A[18] = C[3];
-            A[23] = C[4];
-
-            C[0] = A[4] ^ ((~A[9]) & (A[14]));
-            C[1] = A[9] ^ ((~A[14]) & (A[19]));
-            C[2] = A[14] ^ ((~A[19]) & (A[24]));
-            C[3] = A[19] ^ ((~A[24]) & (A[4]));
-            C[4] = A[24] ^ ((~A[4]) & (A[9]));
-            A[4] = C[0];
-            A[9] = C[1];
-            A[14] = C[2];
-            A[19] = C[3];
-            A[24] = C[4];
-
-            A[0] = A[0] ^ RC4;
-            // --- Round 4 end here ---
-
-            // check correctness of hash
-            uint32_t hash0 = A[0];
-            uint32_t hash1 = A[5];
-            uint32_t hash2 = A[10] & 0xFFFF0000;
-            uint32_t bit_diff = 0;
-            bit_diff += __popc(hash0 ^ 0x751A16E5);
-            bit_diff += __popc(hash1 ^ 0xE495E1E2);
-            bit_diff += __popc(hash2 ^ 0xFF220000);
-
-            if (bit_diff <= DIFF_TOLERANCE) {
+            if (verifyKeccakResult(A)) {
                 // record the initial status to output buffer
                 memcpy(output_buffer + output_buffer_offset, initA, sizeof(initA));
             }
         }
     }
-}
-
-typedef struct threadArgs {
-  KeccakSolver *keccakSolver;
-  uint64_t thread_gb;
-  uint64_t thread_id;
-} threadArgs;
-
-/* function: threadUpdateMQSystems
- * usage: cpu threading function to update GPU_MQGROUP_NUM mq systems.
- *        the input arguments give the guessing bits in iteration, given of which this
- *        function can fill out the variate linear constraints and update the mq system.
- * arguments:
- *        threadArgs-keccakSolver: pointer to Keccak Solver
- *        threadArgs-thread_gb: guessing bits
- *        threadArgs-thread_id: task id (use to locate the memory place)
- */
-void
-threadUpdateMQSystems(void *args) {
-
 }
 
 /* function: keccakSolverInit
@@ -1301,58 +493,15 @@ keccakSolverInit(KeccakSolver *keccakSolver) {
  */
 void
 keccakSolverLoop(KeccakSolver *keccakSolver, uint64_t start, uint64_t end) {
-
-    threadpool_t *threadpool = threadpool_create(CPU_THREAD_NUM, GPU_MQGROUP_NUM, 0);
-    uint64_t guessingBits;
-    threadArgs thread_gb[GPU_MQGROUP_NUM];
-
     dim3 threads_per_block(GPU_THREADS_PER_BLOCK);
     const uint32_t device_mq_buffer_ssize = (GPU_MQGROUP_NUM * MQ_SYSTEM_SIZE) / GPU_STREAM_NUM;
     const uint32_t device_it_buffer_ssize = (GPU_MQGROUP_NUM * LIN_ITER_SYSTEM_SIZE) / GPU_STREAM_NUM;
 
     // main loop
+    kernelSolveMQSystems << <>>>;
     for (guessingBits = start; guessingBits < end; guessingBits += GPU_MQGROUP_NUM) {
-
-        // use thread pool to update mq systems
-        uint32_t taskId;
-        for (taskId = 0; taskId < GPU_MQGROUP_NUM; taskId++) {
-            thread_gb[taskId].keccakSolver = keccakSolver;
-            thread_gb[taskId].thread_gb = guessingBits + taskId;
-            thread_gb[taskId].thread_id = taskId;
-            threadpool_add(threadpool, threadUpdateMQSystems, (void *) &thread_gb[taskId], 0);
-        }
-        threadpool_join(threadpool, 0);
-
         // wait gpu to finish the computation
         CUDA_CHECK(cudaDeviceSynchronize());
-
-        // launch kernel to solve MQ systems
-        uint32_t streamId;
-        uint32_t mq_buffer_soffset = 0;
-        uint32_t it_buffer_soffset = 0;
-        for (streamId = 0; streamId < GPU_STREAM_NUM; streamId++) {
-            mq_buffer_soffset = device_mq_buffer_ssize * streamId;
-            it_buffer_soffset = device_it_buffer_ssize * streamId;
-
-            // copy mq system to device
-            CUDA_CHECK(cudaMemcpyAsync(keccakSolver->device_mq_input_buffer + mq_buffer_soffset,
-                                       keccakSolver->host_mq_input_buffer + mq_buffer_soffset,
-                                       device_mq_buffer_ssize,
-                                       cudaMemcpyHostToDevice,
-                                       cudaStreams[streamId]));
-            // copy iterative constraints to device
-            CUDA_CHECK(cudaMemcpyAsync(keccakSolver->device_it_input_buffer + it_buffer_soffset,
-                                       keccakSolver->host_it_input_buffer + it_buffer_soffset,
-                                       device_it_buffer_ssize,
-                                       cudaMemcpyHostToDevice,
-                                       cudaStreams[streamId]));
-
-            kernelSolveMQSystems << < GPU_BLOCK_PER_STREAM, threads_per_block, 0, cudaStreams[streamId] >> >
-                (keccakSolver->device_mq_input_buffer,
-                    keccakSolver->device_it_input_buffer,
-                    keccakSolver->device_constant_buffer,
-                    keccakSolver->device_output_buffer);
-        }
     }
 
     CUDA_CHECK(cudaDeviceSynchronize());
