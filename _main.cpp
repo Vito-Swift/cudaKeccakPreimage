@@ -6,15 +6,6 @@
  * @language: C++/CUDA
  */
 
-#include <cuda_runtime.h>
-
-#include <iostream>
-#include <stdlib.h>
-#include <inttypes.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <sys/types.h>
-
 #include "keccak.h"
 #include "solver.h"
 
