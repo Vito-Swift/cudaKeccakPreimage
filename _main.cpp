@@ -11,7 +11,6 @@
 
 int main(int argc, char **argv) {
     KeccakSolver keccakSolver;
-
     keccakSolverInit(&keccakSolver, argc, argv);
     keccakSolverLoop(&keccakSolver);
     keccakSolverExit(&keccakSolver);

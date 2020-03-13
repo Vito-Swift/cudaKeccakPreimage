@@ -36,7 +36,7 @@ __host__ void
 loadSystemsFromFile(KeccakSolver *keccakSolver) {
     char buffer[BMQ_XVAR_NUM + 3];
     char ch;
-    uint32_t i;
+    uint32_t i, j;
 
     // load mq system
     FILE *fmq = fopen(keccakSolver->options.mq_analysis_file, "r");
@@ -59,7 +59,7 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
             local_reverse_mq_fvar_idx[right_idx] = left_idx;
         }
         for (i = 0; i < BMQ_EQ_NUM; i++) {
-            for (uint32_t j = 0; j < BMQ_XVAR_NUM; j++) {
+            for (j = 0; j < BMQ_XVAR_NUM; j++) {
                 ch = fgetc(fmq);
                 local_file_mq_system[i * BMQ_XVAR_NUM + j] = (uint8_t) (ch - '0');
             }
@@ -81,7 +81,56 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
                           cudaMemcpyHostToDevice));
 
     // load linear system
-    FILE* flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
+    FILE *flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
+    uint8_t local_c_constr[LIN_CONST_SYSTEM_SIZE];
+    if (flin == NULL) {
+        EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
+    } else {
+        for (i = 0; i < LIN_CONST_EQNUM; i++) {
+            for (j = 0; j < LIN_CONST_XVNUM; j++) {
+                ch = fgetc(flin);
+                local_c_constr[i * LIN_CONST_XVNUM + j] = (uint8_t) (ch - '0');
+            }
+            fgetc(flin);
+        }
+    }
+    fclose(flin);
+    PRINTF_STAMP("[+] read constant linear constraints from file\n");
+    PRINTF_STAMP("\t\tequation_number: %d\n", LIN_CONST_EQNUM);
+    PRINTF_STAMP("\t\tvar_number: %d\n", LIN_CONST_VNUM);
+    PRINTF_STAMP("\t\txvar_number: %d\n", LIN_CONST_XVNUM);
+
+    PRINTF_STAMP("[+] copy linear system to device...\n");
+    CUDA_CHECK(cudaMemcpy(keccakSolver->device_c_constr_buffer,
+                          local_c_constr,
+                          LIN_CONST_SYSTEM_SIZE * sizeof(uint8_t),
+                          cudaMemcpyHostToDevice));
+
+    FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
+    uint8_t local_i_constr[LIN_ITER_SYSTEM_SIZE];
+    if (fi == NULL) {
+        EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
+    } else {
+        for (i = 0; i < LIN_ITER_EQNUM; i++) {
+            for (j = 0; j < LIN_CONST_XVNUM; j++) {
+                ch = fgetc(fi);
+                local_i_constr[i * LIN_CONST_XVNUM + j] = (uint8_t) (ch - '0');
+            }
+            fgetc(fi);
+        }
+    }
+    fclose(fi);
+    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
+    PRINTF_STAMP("\t\tequation_number: %d\n", LIN_ITER_EQNUM);
+    PRINTF_STAMP("\t\tvar_number: %d\n", LIN_CONST_VNUM);
+    PRINTF_STAMP("\t\txvar_number: %d\n", LIN_CONST_XVNUM);
+
+    PRINTF_STAMP("[+] copy iterative linear system to device...\n");
+    CUDA_CHECK(cudaMemcpy(keccakSolver->device_i_constr_buffer,
+                          local_i_constr,
+                          LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t),
+                          cudaMemcpyHostToDevice));
+
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
