@@ -8,6 +8,8 @@
 #include <cuda_runtime.h>
 #include <inttypes.h>
 
+#include "cuda_utils.h"
+
 __device__ static __forceinline__
 bool verifyKeccakResult(uint32_t A[25]);
 

@@ -6,6 +6,7 @@
 #define KECCAKSOLVER_SOLVER_H
 
 #include "options.h"
+#include "cuda_utils.h"
 
 typedef struct KeccakSolver {
 

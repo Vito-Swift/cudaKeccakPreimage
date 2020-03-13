@@ -1,7 +1,7 @@
 /* util.c: implementation for util.h
  */
 
-#include "util.h"
+#include "utils.h"
 
 /* convert timeval to miliseconds */
 #define TIMEVAL2F(stamp) \

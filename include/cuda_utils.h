@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <cuda_runtime.h>
 
-#include "util.h"
+#include "utils.h"
 
 
 /* function: cuda_check

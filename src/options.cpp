@@ -3,14 +3,15 @@
 //
 
 #include "options.h"
+#include "utils.h"
 
 static void
 print_usage(char *prg_name) {
-    printf("\n"
-           "Usage: %s [OPTIONS]\n"
-           "\n"
-           "\n"
-           "\n", prg_name);
+    PRINTF_STAMP("\n"
+                 "Usage: %s [OPTIONS]\n"
+                 "\n"
+                 "\n"
+                 "\n", prg_name);
 }
 
 void
@@ -58,7 +59,7 @@ static struct option keccak_long_opts[] = {
 static inline void
 copy_opt(char **str, char *optarg) {
     if (NULL == ((*str) = strndup(optarg, 1024))) {
-        fprintf(stderr, "[!] invalid input file\n");
+        PRINTF_ERR("[!] invalid input file\n");
     }
 }
 
@@ -74,8 +75,8 @@ options_parse(Options *options, int argc, char **argv) {
             case 0:
                 /* If opts option set a flag, don't do anything */
                 if (keccak_long_opts[opt_idx].flag == 0) {
-                    printf("option %s: %s\n", keccak_long_opts[opt_idx].name,
-                           optarg ? optarg : "null");
+                    PRINTF_STAMP("option %s: %s\n", keccak_long_opts[opt_idx].name,
+                                 optarg ? optarg : "null");
                 }
                 break;
 
@@ -84,34 +85,34 @@ options_parse(Options *options, int argc, char **argv) {
                 exit(0);
 
             case OP_CLIN_FILE:copy_opt(&options->c_lin_analysis_file, optarg);
-                printf("option constant linear analysis file: %s\n", options->c_lin_analysis_file);
+                PRINTF_STAMP("option constant linear analysis file: %s\n", options->c_lin_analysis_file);
                 break;
 
             case OP_ILIN_FILE:copy_opt(&options->i_lin_analysis_file, optarg);
-                printf("option iterative linear analysis file: %s\n", options->i_lin_analysis_file);
+                PRINTF_STAMP("option iterative linear analysis file: %s\n", options->i_lin_analysis_file);
                 break;
 
             case OP_MQ_FILE:copy_opt(&options->mq_analysis_file, optarg);
-                printf("option mq analysis file: %s\n", options->mq_analysis_file);
+                PRINTF_STAMP("option mq analysis file: %s\n", options->mq_analysis_file);
                 break;
 
             case OP_GB_START: options->gbstart = strtoul(optarg, NULL, 0);
-                printf("option start guessing bits: 0x%lx\n", options->gbstart);
+                PRINTF_STAMP("option start guessing bits: 0x%lx\n", options->gbstart);
                 break;
 
             case OP_GB_END: options->gbend = strtoul(optarg, NULL, 0);
-                printf("option end gussing bits: 0x%lx\n", options->gbend);
+                PRINTF_STAMP("option end gussing bits: 0x%lx\n", options->gbend);
                 break;
 
             case OP_DEV_ID:options->dev_id = (uint32_t) atoi(optarg);
-                printf("option dev id: %d\n", options->dev_id);
+                PRINTF_STAMP("option dev id: %d\n", options->dev_id);
                 break;
 
             case '?':
                 /* getopt_long already printed an error message */
                 break;
 
-            default:fprintf(stderr, "[!] unknown error, exit...\n");
+            default:EXIT_WITH_MSG("[!] unknown error, exit...\n");
         }
     }
 }

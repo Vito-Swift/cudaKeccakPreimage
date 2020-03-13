@@ -1,8 +1,6 @@
 /* cuda_util.cu: implementation of cuda_util.h */
 
-extern "C" {
-
-#include "cuda_util.h"
+#include "cuda_utils.h"
 
 /* function: cuda_check
  * usage: check the return value of a CUDA API call and print error msg
@@ -93,6 +91,4 @@ check_gpu(const cudaDeviceProp *const dev_prop) {
     //             dev_prop->hostNativeAtomicSupported ? "yes" : "no");
 
     PRINTF_STAMP("[+] end CUDA info\n");
-}
-
 }
