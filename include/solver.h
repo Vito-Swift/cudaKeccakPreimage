@@ -14,9 +14,9 @@ typedef struct KeccakSolver {
 
   Options options;
 
+  uint8_t* device_linsys_buffer;
   uint8_t *device_mq_buffer;
   uint8_t *device_c_constr_buffer;
-  uint8_t *device_i_constr_buffer;
   uint32_t *device_output_buffer;
 
 } KeccakSolver;

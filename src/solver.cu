@@ -23,14 +23,16 @@
 #define BMQ_XVAR_NUM ((((BMQ_VAR_NUM) * ((BMQ_VAR_NUM) + 1)) / 2) + BMQ_VAR_NUM + 1)
 #define BMQ_SYSTEM_SIZE ((BMQ_EQ_NUM) * (BMQ_XVAR_NUM))
 
-#define GPU_THREADS_PER_BLOCK 256
+#define GPU_THREADS_PER_BLOCK 64
 #define GPU_BLOCK_NUM 64
 #define GPU_TOTAL_THREADS ((GPU_THREADS_PER_BLOCK) * (GPU_BLOCK_NUM))
+#define CHUNK_SIZE 0xFFFFFFF
 
 __constant__ uint32_t file_mq_fvar_idx[BMQ_VAR_NUM];
 __constant__ uint32_t file_reverse_mq_fvar_idx[KECCAK_VNUM];
 __constant__ uint32_t mq_fvar_idx[MQ_VAR_NUM];
 __constant__ uint32_t reverse_mq_fvar_idx[KECCAK_VNUM];
+__constant__ uint8_t iterative_constraints[LIN_ITER_SYSTEM_SIZE];
 
 __host__ void
 loadSystemsFromFile(KeccakSolver *keccakSolver) {
@@ -126,16 +128,38 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     PRINTF_STAMP("\t\txvar_number: %d\n", LIN_CONST_XVNUM);
 
     PRINTF_STAMP("[+] copy iterative linear system to device...\n");
-    CUDA_CHECK(cudaMemcpy(keccakSolver->device_i_constr_buffer,
-                          local_i_constr,
-                          LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t),
-                          cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpyToSymbol(iterative_constraints, local_i_constr, LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t)));
 
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 __global__ void
-kernelLoop() {
+kernelLoop(uint32_t *kern_output_buffer,
+           uint8_t *linear_system_buffer,
+           uint8_t *constance_constrs,
+           uint8_t *bmq_system,
+           uint64_t gbchunk_start,
+           uint64_t gbchunk_end) {
+    uint64_t thread_gbstart;
+    uint64_t thread_gbend;
+    uint64_t thread_id = (threadIdx.x + blockIdx.x * blockDim.x);
+    uint64_t thread_interval = (gbchunk_end - gbchunk_start) / GPU_TOTAL_THREADS;
+
+    thread_gbstart = thread_id * thread_interval;
+    thread_gbend = (thread_id + 1) * thread_interval;
+    uint64_t gb;
+
+    uint8_t *kern_linear_system_buffer = linear_system_buffer +
+        (LIN_ITER_SYSTEM_SIZE + LIN_CONST_SYSTEM_SIZE) * thread_id;
+    // main loop
+    for (gb = thread_gbstart; gb < thread_gbend; gb++) {
+        memcpy(kern_linear_system_buffer, linear_system_buffer, LIN_CONST_SYSTEM_SIZE * sizeof(uint8_t));
+        memcpy(kern_linear_system_buffer + LIN_CONST_SYSTEM_SIZE,
+               iterative_constraints,
+               LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t));
+        if (thread_id == 1)
+            printf("hi\n");
+    }
 }
 
 __host__ void
@@ -143,13 +167,14 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     options_init(&keccakSolver->options);
     options_parse(&keccakSolver->options, argc, argv);
 
+    CUDA_CHECK(cudaSetDevice(keccakSolver->options.dev_id));
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaDeviceReset());
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_output_buffer, 25 * GPU_TOTAL_THREADS * sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_mq_buffer, BMQ_SYSTEM_SIZE * sizeof(uint8_t)));
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_c_constr_buffer, LIN_CONST_SYSTEM_SIZE * sizeof(uint8_t)));
-    CUDA_CHECK(cudaMalloc(&keccakSolver->device_i_constr_buffer, LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t)));
-
+    CUDA_CHECK(cudaMalloc(&keccakSolver->device_linsys_buffer,
+                          (LIN_CONST_SYSTEM_SIZE + LIN_ITER_SYSTEM_SIZE) * GPU_TOTAL_THREADS * sizeof(uint8_t)));
     loadSystemsFromFile(keccakSolver);
 }
 
@@ -157,7 +182,26 @@ __host__ void
 keccakSolverLoop(KeccakSolver *keccakSolver) {
     CUDA_CHECK(cudaDeviceSynchronize());
     dim3 tpb(GPU_THREADS_PER_BLOCK);
-    kernelLoop << < GPU_BLOCK_NUM, tpb >> > ();
+
+    uint64_t search_interval = keccakSolver->options.gbend - keccakSolver->options.gbstart;
+    if (search_interval > CHUNK_SIZE) {
+        for (uint64_t i = keccakSolver->options.gbstart; i < keccakSolver->options.gbend; i += CHUNK_SIZE) {
+            kernelLoop << < GPU_BLOCK_NUM, tpb >> >
+                (keccakSolver->device_output_buffer,
+                    keccakSolver->device_linsys_buffer,
+                    keccakSolver->device_c_constr_buffer,
+                    keccakSolver->device_mq_buffer,
+                    i, i + CHUNK_SIZE);
+        }
+    } else {
+        kernelLoop << < GPU_BLOCK_NUM, tpb >> >
+            (keccakSolver->device_output_buffer,
+                keccakSolver->device_linsys_buffer,
+                keccakSolver->device_c_constr_buffer,
+                keccakSolver->device_mq_buffer,
+                keccakSolver->options.gbstart,
+                keccakSolver->options.gbend);
+    }
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
@@ -168,6 +212,6 @@ keccakSolverExit(KeccakSolver *keccakSolver) {
     CUDA_CHECK(cudaFree(keccakSolver->device_output_buffer));
     CUDA_CHECK(cudaFree(keccakSolver->device_mq_buffer));
     CUDA_CHECK(cudaFree(keccakSolver->device_c_constr_buffer));
-    CUDA_CHECK(cudaFree(keccakSolver->device_i_constr_buffer));
+    CUDA_CHECK(cudaFree(keccakSolver->device_linsys_buffer));
     EXIT_WITH_MSG("keccak solver exit\n");
 }
