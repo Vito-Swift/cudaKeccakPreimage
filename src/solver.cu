@@ -24,7 +24,7 @@
 #define BMQ_SYSTEM_SIZE ((BMQ_EQ_NUM) * (BMQ_XVAR_NUM))
 
 #define GPU_THREADS_PER_BLOCK 64
-#define GPU_BLOCK_NUM 64
+#define GPU_BLOCK_NUM 32
 #define GPU_TOTAL_THREADS ((GPU_THREADS_PER_BLOCK) * (GPU_BLOCK_NUM))
 #define CHUNK_SIZE 0xFFFFFFF
 
@@ -151,14 +151,14 @@ kernelLoop(uint32_t *kern_output_buffer,
 
     uint8_t *kern_linear_system_buffer = linear_system_buffer +
         (LIN_ITER_SYSTEM_SIZE + LIN_CONST_SYSTEM_SIZE) * thread_id;
+    if (thread_id == 1)
+        printf("hi\n");
     // main loop
     for (gb = thread_gbstart; gb < thread_gbend; gb++) {
-        memcpy(kern_linear_system_buffer, linear_system_buffer, LIN_CONST_SYSTEM_SIZE * sizeof(uint8_t));
-        memcpy(kern_linear_system_buffer + LIN_CONST_SYSTEM_SIZE,
-               iterative_constraints,
-               LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t));
-        if (thread_id == 1)
-            printf("hi\n");
+//        memcpy(kern_linear_system_buffer, linear_system_buffer, LIN_CONST_SYSTEM_SIZE * sizeof(uint8_t));
+//        memcpy(kern_linear_system_buffer + LIN_CONST_SYSTEM_SIZE,
+//               iterative_constraints,
+//               LIN_ITER_SYSTEM_SIZE * sizeof(uint8_t));
     }
 }
 
@@ -192,6 +192,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
                     keccakSolver->device_c_constr_buffer,
                     keccakSolver->device_mq_buffer,
                     i, i + CHUNK_SIZE);
+            CUDA_CHECK(cudaDeviceSynchronize());
         }
     } else {
         kernelLoop << < GPU_BLOCK_NUM, tpb >> >
