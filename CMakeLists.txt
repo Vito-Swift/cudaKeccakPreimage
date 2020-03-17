@@ -108,7 +108,9 @@ set(CMAKE_CUDA_FLAGS_RELEASE
 
 set(CXX_SRCS
         src/options.cpp
-        src/utils.cpp)
+        src/utils.cpp
+        src/threadpool.cpp
+        src/math.cpp)
 
 set(CUDA_SRCS
         src/keccak.cu
@@ -135,3 +137,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON)
 
 add_executable(testMQIO testMQIO.cpp)
+add_executable(testAp testAp.cpp)
+add_executable(testMQ testMQ.cu)
+target_include_directories(testMQ
+        PRIVATE ${PROJECT_SOURCE_DIR}/include
+        PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

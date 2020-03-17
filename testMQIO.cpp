@@ -19,15 +19,17 @@
     (cbinom2(var2_idx) + (var1_idx))
 
 #define BMQ_VAR_NUM 800
-#define BMQ_EQ_NUM 48
+#define BMQ_EQ_NUM 38
 #define BMQ_XVAR_NUM ((((BMQ_VAR_NUM) * ((BMQ_VAR_NUM) + 1)) / 2) + BMQ_VAR_NUM + 1)
 
 #define BLIN_VAR_NUM 800
 #define BLIN_EQ_NUM 707
 
 #define RMQ_VAR_NUM 94
-#define RMQ_EQ_NUM 48
+#define RMQ_EQ_NUM 38
 #define RMQ_XVAR_NUM ((((RMQ_VAR_NUM) * ((RMQ_VAR_NUM) + 1)) / 2) + RMQ_VAR_NUM + 1)
+
+#define IEQ_NUM 53
 
 uint8_t mq_system_init[BMQ_EQ_NUM][BMQ_XVAR_NUM];
 uint8_t mq_lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1];
@@ -35,8 +37,8 @@ uint8_t mq_lin_dep[BLIN_VAR_NUM][BLIN_VAR_NUM + 1];
 uint32_t mq_fvar_idx[RMQ_VAR_NUM] = {0};
 uint32_t reverse_mq_fvar_idx[BLIN_VAR_NUM];
 uint8_t mq_system_result[RMQ_EQ_NUM][RMQ_XVAR_NUM];
-uint8_t mq_iterative_system[63][BLIN_VAR_NUM + 1];
-uint8_t reduced_iterative_system[63][RMQ_VAR_NUM + 1];
+uint8_t mq_iterative_system[IEQ_NUM][BLIN_VAR_NUM + 1];
+uint8_t reduced_iterative_system[IEQ_NUM][RMQ_VAR_NUM + 1];
 
 void reduceLinearSystem(uint8_t lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1],
                         uint32_t mq_fvar_idx[RMQ_VAR_NUM]) {
@@ -89,7 +91,7 @@ void reduceLinearSystem(uint8_t lin_system[BLIN_EQ_NUM][BLIN_VAR_NUM + 1],
 
 void reduceIterativeSystem() {
     uint32_t eq_idx, var_idx;
-    for (eq_idx = 0; eq_idx < 63; eq_idx++) {
+    for (eq_idx = 0; eq_idx < IEQ_NUM; eq_idx++) {
         for (var_idx = 0; var_idx < BLIN_VAR_NUM; var_idx++) {
             if (mq_iterative_system[eq_idx][var_idx]) {
                 if (reverse_mq_fvar_idx[var_idx] == 0xFFFFFFFF) {
@@ -102,7 +104,7 @@ void reduceIterativeSystem() {
             }
         }
     }
-    for (eq_idx = 0; eq_idx < 63; eq_idx++) {
+    for (eq_idx = 0; eq_idx < IEQ_NUM; eq_idx++) {
         for (var_idx = 0; var_idx < RMQ_VAR_NUM; var_idx++) {
             if (mq_iterative_system[eq_idx][mq_fvar_idx[var_idx]]) {
                 reduced_iterative_system[eq_idx][var_idx] ^= 1;
@@ -201,26 +203,26 @@ void reduceMQSystem() {
 }
 
 int main() {
-//    FILE *fmq = fopen("../data/mq_analysis.dat", "r");
+    FILE *fmq = fopen("../data/mq_analysis.dat", "r");
     char ch;
-//    uint32_t xv = 0;
-//    if (fmq == NULL) {
-//        printf("File is not available\n");
-//    } else {
-//        uint32_t k = 0;
-//        uint32_t eq_idx = 0;
-//        while ((ch = fgetc(fmq)) != EOF) {
-//            if (ch == '\n') {
-//                xv = k;
-//                k = 0;
-//                eq_idx++;
-//                continue;
-//            }
-//            mq_system_init[eq_idx][k] = (uint8_t) (ch - '0');
-//            k++;
-//        }
-//        fclose(fmq);
-//    }
+    uint32_t xv = 0;
+    if (fmq == NULL) {
+        printf("File is not available\n");
+    } else {
+        uint32_t k = 0;
+        uint32_t eq_idx = 0;
+        while ((ch = fgetc(fmq)) != EOF) {
+            if (ch == '\n') {
+                xv = k;
+                k = 0;
+                eq_idx++;
+                continue;
+            }
+            mq_system_init[eq_idx][k] = (uint8_t) (ch - '0');
+            k++;
+        }
+        fclose(fmq);
+    }
 
 //    printf("[+] read mq analysis from file\n"
 //           "\tequation_number: %d\n"
@@ -254,7 +256,7 @@ int main() {
     if (fi == NULL) {
         printf("File is not available\n");
     } else {
-        for (uint32_t i = 0; i < 63; i++) {
+        for (uint32_t i = 0; i < IEQ_NUM; i++) {
             for (uint32_t j = 0; j < BLIN_VAR_NUM + 1; j++) {
                 ch = fgetc(flin);
                 mq_iterative_system[i][j] = (uint8_t) (ch - '0');
@@ -269,11 +271,11 @@ int main() {
 //            printf("%d", mq_iterative_system[i][j]);
 //        printf("\n");
 //    }
-    for (uint32_t i = 0; i < 63; i++) {
-        for (uint32_t j = 0; j < RMQ_VAR_NUM + 1; j++)
-            printf("%d", reduced_iterative_system[i][j]);
-        printf("\n");
-    }
+//    for (uint32_t i = 0; i < IEQ_NUM; i++) {
+//        for (uint32_t j = 0; j < RMQ_VAR_NUM + 1; j++)
+//            printf("%d", reduced_iterative_system[i][j]);
+//        printf("\n");
+//    }
 //    reduceMQSystem();
 
 //    for (uint32_t i = 0; i < RMQ_VAR_NUM; i++)

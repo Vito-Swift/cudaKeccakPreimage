@@ -18,8 +18,10 @@ void
 options_init(Options *options) {
     options->c_lin_analysis_file = nullptr;
     options->i_lin_analysis_file = nullptr;
+    options->a_lin_analysis_file = nullptr;
     options->mq_analysis_file = nullptr;
     options->dev_id = 0;
+    options->cpu_thread_num = 1;
     options->gbstart = 0;
     options->gbend = 0;
 }
@@ -40,15 +42,19 @@ options_free(Options *options) {
 #define OP_CLIN_FILE    1
 #define OP_MQ_FILE      2
 #define OP_ILIN_FILE    3
-#define OP_DEV_ID       4
-#define OP_GB_START     5
-#define OP_GB_END       6
+#define OP_ALIN_FILE    4
+#define OP_DEV_ID       5
+#define OP_THREAD_NUM   6
+#define OP_GB_START     7
+#define OP_GB_END       8
 
 static struct option keccak_long_opts[] = {
     {"clin_file", required_argument, 0, OP_CLIN_FILE},
     {"mq_file", required_argument, 0, OP_MQ_FILE},
     {"ilin_file", required_argument, 0, OP_ILIN_FILE},
     {"dev_id", required_argument, 0, OP_DEV_ID},
+    {"t", required_argument, 0, OP_THREAD_NUM},
+    {"alin_file", required_argument, 0, OP_ALIN_FILE},
     {"gb_start", required_argument, 0, OP_GB_START},
     {"gb_end", required_argument, 0, OP_GB_END},
     {"help", 0, 0, 'h'},
@@ -88,6 +94,10 @@ options_parse(Options *options, int argc, char **argv) {
                 PRINTF_STAMP("option constant linear analysis file: %s\n", options->c_lin_analysis_file);
                 break;
 
+            case OP_ALIN_FILE:copy_opt(&options->a_lin_analysis_file, optarg);
+                PRINTF_STAMP("option append linear analysis file: %s\n", options->a_lin_analysis_file);
+                break;
+
             case OP_ILIN_FILE:copy_opt(&options->i_lin_analysis_file, optarg);
                 PRINTF_STAMP("option iterative linear analysis file: %s\n", options->i_lin_analysis_file);
                 break;
@@ -106,6 +116,10 @@ options_parse(Options *options, int argc, char **argv) {
 
             case OP_DEV_ID:options->dev_id = (uint32_t) atoi(optarg);
                 PRINTF_STAMP("option dev id: %d\n", options->dev_id);
+                break;
+
+            case OP_THREAD_NUM:options->cpu_thread_num = (uint64_t) strtoul(optarg, NULL, 0);
+                PRINTF_STAMP("options cpu thread num: %ld\n", options->cpu_thread_num);
                 break;
 
             case '?':

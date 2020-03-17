@@ -7,21 +7,20 @@
 
 #include "options.h"
 #include "cuda_utils.h"
+#include "threadpool.h"
 
 typedef struct KeccakSolver {
-
   bool verbose;
 
   Options options;
 
-  uint8_t* device_linsys_buffer;
   uint8_t *device_mq_buffer;
-  uint8_t *device_c_constr_buffer;
   uint32_t *device_output_buffer;
+  threadpool_t *threadpool;
 
 } KeccakSolver;
 
-void keccakSolverInit(KeccakSolver *keccakSolver, int argc, char** argv);
+void keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv);
 void keccakSolverLoop(KeccakSolver *keccakSolver);
 void keccakSolverExit(KeccakSolver *keccakSolver);
 
