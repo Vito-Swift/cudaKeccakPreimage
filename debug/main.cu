@@ -15,7 +15,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include "include/keccak.h"
+#include "keccak.h"
 
 /* ******************************************************
  * *********** Params and Global Variables **************

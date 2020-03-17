@@ -122,7 +122,7 @@ set(CUDA_SRCS
 # main program
 # ========================================================================== #
 
-add_executable(${PROJECT_NAME} ${CXX_SRCS} ${CUDA_SRCS} debug/_main.cpp)
+add_executable(${PROJECT_NAME} ${CXX_SRCS} ${CUDA_SRCS} _main.cpp)
 
 target_link_libraries(${PROJECT_NAME}
         PRIVATE m
