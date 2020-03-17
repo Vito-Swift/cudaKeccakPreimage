@@ -103,6 +103,14 @@ set(CMAKE_CUDA_FLAGS_RELEASE
 
 
 # ========================================================================== #
+# dat file
+# ========================================================================== #
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/append_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/mq_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/lin_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/variate_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+
+# ========================================================================== #
 # source code
 # ========================================================================== #
 

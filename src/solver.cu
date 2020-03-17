@@ -4,28 +4,8 @@
 
 #include "solver.h"
 
-#include "math.h"
 #include "threadpool.h"
-
-#define LIN_CONST_EQNUM 707
-#define LIN_ITER_EQNUM 53
-#define LIN_CONST_SYSTEM_SIZE (801 * (LIN_CONST_EQNUM))
-#define LIN_ITER_SYSTEM_SIZE (801* (LIN_ITER_EQNUM))
-#define BMQ_XVAR_NUM 321201
-
-#define IMQ_VAR_NUM 94
-#define IMQ_XVAR_NUM ((((IMQ_VAR_NUM) * ((IMQ_VAR_NUM) + 1)) / 2) + IMQ_VAR_NUM + 1)
-#define AMQ_VAR_NUM 41
-#define AMQ_LIN_EQNUM 10
-
-#define MQ_VAR_NUM 31
-#define MQ_EQ_NUM 38
-#define MQ_XVAR_NUM ((((MQ_VAR_NUM) * ((MQ_VAR_NUM) + 1)) / 2) + MQ_VAR_NUM + 1)
-#define MQ_SYSTEM_SIZE ((MQ_EQ_NUM) * (MQ_XVAR_NUM))
-
-#define CHUNK_SIZE 0x2000
-#define GPU_THREADS_PER_BLOCK 64
-#define GPU_BLOCK_NUM ((CHUNK_SIZE) / (GPU_THREADS_PER_BLOCK))
+#include "params.h"
 
 
 // linear dependency passed to thread
@@ -41,7 +21,7 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
 
     // load mq system
     FILE *fmq = fopen(keccakSolver->options.mq_analysis_file, "r");
-    uint32_t file_mq_system[MQ_EQ_NUM * BMQ_XVAR_NUM];
+    uint32_t *file_mq_system = (uint32_t *) malloc(MQ_EQ_NUM * BMQ_XVAR_NUM * sizeof(uint32_t));
 
     if (fmq == NULL) {
         EXIT_WITH_MSG("[!] cannot open mq analysis file\n");
@@ -57,40 +37,39 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     fclose(fmq);
     PRINTF_STAMP("[+] read mq analysis from file\n");
 
-    // load linear system
-    FILE *flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
-    uint8_t local_c_constr[LIN_CONST_SYSTEM_SIZE];
-    if (flin == NULL) {
-        EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
-    } else {
-        for (i = 0; i < LIN_CONST_EQNUM; i++) {
-            for (j = 0; j < 801; j++) {
-                ch = fgetc(flin);
-                local_c_constr[i * 801 + j] = (uint8_t) (ch - '0');
-            }
-            fgetc(flin);
-        }
-    }
-    fclose(flin);
-    PRINTF_STAMP("[+] read constant linear constraints from file\n");
-
-    FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
-    uint8_t local_i_constr[LIN_ITER_SYSTEM_SIZE];
-    if (fi == NULL) {
-        EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
-    } else {
-        for (i = 0; i < LIN_ITER_EQNUM; i++) {
-            for (j = 0; j < 801; j++) {
-                ch = fgetc(fi);
-                local_i_constr[i * 801 + j] = (uint8_t) (ch - '0');
-            }
-            fgetc(fi);
-        }
-    }
-    fclose(fi);
-    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
-
-    CUDA_CHECK(cudaDeviceSynchronize());
+    free(file_mq_system);
+//    // load linear system
+//    FILE *flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
+//    uint8_t local_c_constr[LIN_CONST_SYSTEM_SIZE];
+//    if (flin == NULL) {
+//        EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
+//    } else {
+//        for (i = 0; i < LIN_CONST_EQNUM; i++) {
+//            for (j = 0; j < 801; j++) {
+//                ch = fgetc(flin);
+//                local_c_constr[i * 801 + j] = (uint8_t) (ch - '0');
+//            }
+//            fgetc(flin);
+//        }
+//    }
+//    fclose(flin);
+//    PRINTF_STAMP("[+] read constant linear constraints from file\n");
+//
+//    FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
+//    uint8_t local_i_constr[LIN_ITER_SYSTEM_SIZE];
+//    if (fi == NULL) {
+//        EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
+//    } else {
+//        for (i = 0; i < LIN_ITER_EQNUM; i++) {
+//            for (j = 0; j < 801; j++) {
+//                ch = fgetc(fi);
+//                local_i_constr[i * 801 + j] = (uint8_t) (ch - '0');
+//            }
+//            fgetc(fi);
+//        }
+//    }
+//    fclose(fi);
+//    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
 }
 
 __global__ void
@@ -138,7 +117,7 @@ threadUpdateMQSystem(void *arg) {
 __host__ void
 threadCheckResult(void *arg) {
     tcheckarg_t *args = (tcheckarg_t *) arg;
-    *args->preimage_found = false;
+    *args->preimage_found = true;
 }
 
 __host__ void

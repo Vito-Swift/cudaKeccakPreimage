@@ -14,12 +14,25 @@ print_usage(char *prg_name) {
                  "\n", prg_name);
 }
 
+/* copy parsed option into a char* pointer, take at most 1024 chars */
+static inline void
+copy_opt(char **str, char *optarg) {
+    if (NULL == ((*str) = strndup(optarg, 1024))) {
+        PRINTF_ERR("[!] invalid input file\n");
+    }
+}
+
 void
 options_init(Options *options) {
-    options->c_lin_analysis_file = nullptr;
-    options->i_lin_analysis_file = nullptr;
-    options->a_lin_analysis_file = nullptr;
-    options->mq_analysis_file = nullptr;
+    char variate_filename[] = "variate_analysis.dat";
+    char append_filename[] = "append_analysis.dat";
+    char lin_filename[] = "lin_analysis.dat";
+    char mq_filename[] = "mq_analysis.dat";
+    copy_opt(&options->i_lin_analysis_file, variate_filename);
+    copy_opt(&options->a_lin_analysis_file, append_filename);
+    copy_opt(&options->c_lin_analysis_file, lin_filename);
+    copy_opt(&options->mq_analysis_file, mq_filename);
+
     options->dev_id = 0;
     options->cpu_thread_num = 1;
     options->gbstart = 0;
@@ -60,14 +73,6 @@ static struct option keccak_long_opts[] = {
     {"help", 0, 0, 'h'},
     {0, 0, 0, 0}
 };
-
-/* copy parsed option into a char* pointer, take at most 1024 chars */
-static inline void
-copy_opt(char **str, char *optarg) {
-    if (NULL == ((*str) = strndup(optarg, 1024))) {
-        PRINTF_ERR("[!] invalid input file\n");
-    }
-}
 
 void
 options_parse(Options *options, int argc, char **argv) {

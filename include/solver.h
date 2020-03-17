@@ -8,16 +8,15 @@
 #include "options.h"
 #include "cuda_utils.h"
 #include "threadpool.h"
+#include "math.h"
 
 typedef struct KeccakSolver {
   bool verbose;
-
   Options options;
-
+  MathSystem mathSystem;
   uint8_t *device_mq_buffer;
   uint32_t *device_output_buffer;
   threadpool_t *threadpool;
-
 } KeccakSolver;
 
 void keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv);
