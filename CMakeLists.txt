@@ -122,7 +122,7 @@ set(CUDA_SRCS
 # main program
 # ========================================================================== #
 
-add_executable(${PROJECT_NAME} ${CXX_SRCS} ${CUDA_SRCS} _main.cpp)
+add_executable(${PROJECT_NAME} ${CXX_SRCS} ${CUDA_SRCS} debug/_main.cpp)
 
 target_link_libraries(${PROJECT_NAME}
         PRIVATE m
@@ -136,9 +136,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
         LINKER_LANGUAGE CXX
         CUDA_SEPARABLE_COMPILATION ON)
 
-add_executable(testMQIO testMQIO.cpp)
-add_executable(testAp testAp.cpp)
-add_executable(testMQ testMQ.cu)
+add_executable(testMQIO debug/testMQIO.cpp)
+add_executable(testAp debug/testAp.cpp)
+add_executable(testMQ debug/testMQ.cu)
 target_include_directories(testMQ
         PRIVATE ${PROJECT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
