@@ -19,6 +19,23 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     char ch;
     uint32_t i, j;
 
+    // load linear system
+    FILE *flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
+    uint8_t local_c_constr[LIN_CONST_EQNUM][801];
+    if (flin == NULL) {
+        EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
+    } else {
+        for (i = 0; i < LIN_CONST_EQNUM; i++) {
+            for (j = 0; j < 801; j++) {
+                ch = fgetc(flin);
+                local_c_constr[i][j] = (uint8_t) (ch - '0');
+            }
+            fgetc(flin);
+        }
+    }
+    fclose(flin);
+    PRINTF_STAMP("[+] read constant linear constraints from file\n");
+
     // load mq system
     FILE *fmq = fopen(keccakSolver->options.mq_analysis_file, "r");
     uint32_t *file_mq_system = (uint32_t *) malloc(MQ_EQ_NUM * BMQ_XVAR_NUM * sizeof(uint32_t));
@@ -37,39 +54,24 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     fclose(fmq);
     PRINTF_STAMP("[+] read mq analysis from file\n");
 
+    FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
+    uint8_t local_i_constr[LIN_ITER_SYSTEM_SIZE];
+    if (fi == NULL) {
+        EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
+    } else {
+        for (i = 0; i < LIN_ITER_EQNUM; i++) {
+            for (j = 0; j < 801; j++) {
+                ch = fgetc(fi);
+                local_i_constr[i * 801 + j] = (uint8_t) (ch - '0');
+            }
+            fgetc(fi);
+        }
+    }
+    fclose(fi);
+    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
+
+    extractRound3LinearDependency(&keccakSolver->mathSystem, local_c_constr);
     free(file_mq_system);
-//    // load linear system
-//    FILE *flin = fopen(keccakSolver->options.c_lin_analysis_file, "r");
-//    uint8_t local_c_constr[LIN_CONST_SYSTEM_SIZE];
-//    if (flin == NULL) {
-//        EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
-//    } else {
-//        for (i = 0; i < LIN_CONST_EQNUM; i++) {
-//            for (j = 0; j < 801; j++) {
-//                ch = fgetc(flin);
-//                local_c_constr[i * 801 + j] = (uint8_t) (ch - '0');
-//            }
-//            fgetc(flin);
-//        }
-//    }
-//    fclose(flin);
-//    PRINTF_STAMP("[+] read constant linear constraints from file\n");
-//
-//    FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
-//    uint8_t local_i_constr[LIN_ITER_SYSTEM_SIZE];
-//    if (fi == NULL) {
-//        EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
-//    } else {
-//        for (i = 0; i < LIN_ITER_EQNUM; i++) {
-//            for (j = 0; j < 801; j++) {
-//                ch = fgetc(fi);
-//                local_i_constr[i * 801 + j] = (uint8_t) (ch - '0');
-//            }
-//            fgetc(fi);
-//        }
-//    }
-//    fclose(fi);
-//    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
 }
 
 __global__ void

@@ -22,18 +22,29 @@
 #include <cstring>
 #include <iostream>
 
+#include "params.h"
+
 typedef struct MathSystem {
-  uint32_t *round3_lin_dep;
+  uint32_t *round3_lin_dep[800];
   uint32_t *round3_mq2lin;
   uint32_t *round3_lin2mq;
-  uint8_t *round3_append_system;
-  uint8_t *round3_mq_system;
+  uint8_t *round3_append_system[AMQ_LIN_EQNUM];
+  uint8_t *round3_mq_system[MQ_EQ_NUM];
 
   uint32_t *round4_lin_dep;
 } MathSystem;
 
 void
 initMathSystem(MathSystem *system);
+
+void
+extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_EQNUM][801]);
+
+void
+reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system);
+
+void
+reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem);
 
 void
 freeMathSystem(MathSystem *system);
