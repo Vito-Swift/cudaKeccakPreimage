@@ -33,34 +33,31 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     FILE *fa = fopen(keccakSolver->options.a_lin_analysis_file, "r");
     FILE *fi = fopen(keccakSolver->options.i_lin_analysis_file, "r");
 
-    // load linear system
     if (flin == NULL) {
         EXIT_WITH_MSG("[!] cannot open constant linear constraint file\n");
     } else {
         for (i = 0; i < LIN_CONST_EQNUM; i++) {
             for (j = 0; j < 801; j++) {
                 ch = fgetc(flin);
-                local_c_constr[i][j] = (uint8_t) (ch - '0');
+                constant_constr[i][j] = (uint8_t) (ch - '0');
             }
             fgetc(flin);
         }
     }
-    PRINTF_STAMP("[+] read constant linear constraints from file\n");
+    PRINTF_STAMP("read constant linear constraints from file\n");
 
-    // load mq system
     if (fmq == NULL) {
         EXIT_WITH_MSG("[!] cannot open mq analysis file\n");
     } else {
         for (i = 0; i < MQ_EQ_NUM; i++) {
             for (j = 0; j < BMQ_XVAR_NUM; j++) {
                 ch = fgetc(fmq);
-                file_mq_system[i * BMQ_XVAR_NUM + j] = (uint8_t) (ch - '0');
+                mq_system[i][j] = (uint8_t) (ch - '0');
             }
             fgetc(fmq);
         }
     }
-
-    PRINTF_STAMP("[+] read mq analysis from file\n");
+    PRINTF_STAMP("read mq analysis from file\n");
 
     if (fi == NULL) {
         EXIT_WITH_MSG("[!] cannot open iterative linear constraint file\n");
@@ -68,21 +65,33 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
         for (i = 0; i < LIN_ITER_EQNUM; i++) {
             for (j = 0; j < 801; j++) {
                 ch = fgetc(fi);
-                local_i_constr[i][j] = (uint8_t) (ch - '0');
+                iterative_constr[i][j] = (uint8_t) (ch - '0');
             }
             fgetc(fi);
         }
     }
+    PRINTF_STAMP("read iterative linear constraints from file\n");
 
-    PRINTF_STAMP("[+] read iterative linear constraints from file\n");
+    if (fa == NULL) {
+        EXIT_WITH_MSG("[!] cannot open append system file\n");
+    } else {
+        for (i = 0; i < AMQ_LIN_EQNUM; i++) {
+            for (j = 0; j < BMQ_XVAR_NUM; j++) {
+                ch = fgetc(fa);
+                append_system[i][j] = (uint8_t) (ch - '0');
+            }
+            fgetc(fa);
+        }
+    }
 
-    extractRound3LinearDependency(&keccakSolver->mathSystem, local_c_constr);
-    reduceRound3AppendSystem(&keccakSolver->mathSystem,);
+    extractRound3LinearDependency(&keccakSolver->mathSystem, constant_constr);
+    reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
 
     for (i = 0; i < MQ_EQ_NUM; i++)
         free(mq_system[i]);
     for (i = 0; i < AMQ_LIN_EQNUM; i++)
         free(append_system[i]);
+
     fclose(fmq);
     fclose(flin);
     fclose(fi);

@@ -5,6 +5,8 @@
 #include <iostream>
 #include <stdint.h>
 
+#include "keccak.h"
+
 __device__ static __forceinline__
 uint32_t
 ctz(uint32_t c) {
@@ -33,9 +35,11 @@ testMqTime() {
 }
 
 int main() {
-    dim3 tpb(64);
-    cudaDeviceSynchronize();
-    testMqTime<<<64, tpb>>>();
-    cudaDeviceSynchronize();
+//    dim3 tpb(64);
+//    cudaDeviceSynchronize();
+//    testMqTime<<<64, tpb>>>();
+//    cudaDeviceSynchronize();
+    uint32_t A[5][5];
+    cpu_VerifyKeccakResult(A);
     return 0;
 }

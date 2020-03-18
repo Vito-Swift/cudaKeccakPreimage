@@ -5,6 +5,7 @@
 #include "math.h"
 
 #include "params.h"
+#include "utils.h"
 
 #define DEP_PLACEMENT 0xffffffff
 
@@ -97,7 +98,6 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
 
 void
 reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
-    memset(system->round3_append_system, 0, IMQ_XVAR_NUM * AMQ_LIN_EQNUM);
     uint32_t eq_idx, var_idx, i, j;
 
     uint8_t **reduced_system = system->round3_append_system;
@@ -105,6 +105,8 @@ reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
     uint32_t *lin2mq = system->round3_lin2mq;
 
     for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
+        PRINTF_STAMP("reducing append system\tequation %d...\n", eq_idx);
+        memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
         uint32_t multix_1;
         uint32_t multix_2;
         for (multix_1 = 0; multix_1 < 800; multix_1++) {

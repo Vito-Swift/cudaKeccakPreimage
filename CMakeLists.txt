@@ -118,7 +118,8 @@ set(CXX_SRCS
         src/options.cpp
         src/utils.cpp
         src/threadpool.cpp
-        src/math.cpp)
+        src/math.cpp
+        src/keccak.cpp)
 
 set(CUDA_SRCS
         src/keccak.cu
@@ -146,7 +147,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 add_executable(testMQIO debug/testMQIO.cpp)
 add_executable(testAp debug/testAp.cpp)
-add_executable(testMQ debug/testMQ.cu)
+add_executable(testMQ debug/testMQ.cu src/keccak.cpp)
 target_include_directories(testMQ
         PRIVATE ${PROJECT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
