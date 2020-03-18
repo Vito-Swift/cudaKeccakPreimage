@@ -1,2 +1,1 @@
-# Example of a `.gitattributes` file which reclassifies `.cpp` files as Cuda:
 *.cpp linguist-language=Cuda

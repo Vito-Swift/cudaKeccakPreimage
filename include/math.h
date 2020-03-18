@@ -25,13 +25,13 @@
 #include "params.h"
 
 typedef struct MathSystem {
-  uint32_t *round3_lin_dep[800];
+  uint8_t *round3_lin_dep[800];
   uint32_t *round3_mq2lin;
   uint32_t *round3_lin2mq;
   uint8_t *round3_append_system[AMQ_LIN_EQNUM];
   uint8_t *round3_mq_system[MQ_EQ_NUM];
-
-  uint32_t *round4_lin_dep;
+  uint8_t *round3_iter_system[LIN_ITER_EQNUM];
+  uint8_t *round4_lin_dep;
 } MathSystem;
 
 void
@@ -45,6 +45,16 @@ reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system);
 
 void
 reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem);
+
+void
+reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]);
+
+void
+guessingBitsToMqSystem(MathSystem *system,
+                       uint64_t guessingBits,
+                       uint8_t *mqbuffer,
+                       uint32_t *mq2lin,
+                       uint8_t *lin_dep);
 
 void
 freeMathSystem(MathSystem *system);

@@ -17,25 +17,40 @@ initMathSystem(MathSystem *system) {
     uint32_t i;
 
     // linear dependency: x_k = x_n_1 + x_n_2 + ... + x_n_j
-    for (i = 0; i < 800; i++)
-        system->round3_lin_dep[i] = (uint32_t *) malloc((IMQ_VAR_NUM + 1) * sizeof(uint32_t));
+    for (i = 0; i < 800; i++) {
+        system->round3_lin_dep[i] = (uint8_t *) malloc((IMQ_VAR_NUM + 1) * sizeof(uint8_t));
+        memset(system->round3_lin_dep[i], 0, (IMQ_VAR_NUM + 1) * sizeof(uint8_t));
+    }
 
     // append system in order 2
-    for (i = 0; i < AMQ_LIN_EQNUM; i++)
+    for (i = 0; i < AMQ_LIN_EQNUM; i++) {
         system->round3_append_system[i] = (uint8_t *) malloc(IMQ_XVAR_NUM * (sizeof(uint8_t)));
+        memset(system->round3_append_system[i], 0, IMQ_XVAR_NUM * sizeof(uint8_t));
+    }
 
     // mq system in order 2
-    for (i = 0; i < MQ_EQ_NUM; i++)
+    for (i = 0; i < MQ_EQ_NUM; i++) {
         system->round3_mq_system[i] = (uint8_t *) malloc(IMQ_XVAR_NUM * sizeof(uint8_t));
+        memset(system->round3_append_system[i], 0, IMQ_XVAR_NUM * sizeof(uint8_t));
+    }
+
+    // iterative system in order 1
+    for (i = 0; i < LIN_ITER_EQNUM; i++) {
+        system->round3_iter_system[i] = (uint8_t *) malloc(801 * sizeof(uint8_t));
+        memset(system->round3_iter_system[i], 0, 801 * sizeof(uint8_t));
+    }
 
     // transfer mq var index (94) to linear var index (94)
     system->round3_mq2lin = (uint32_t *) malloc(IMQ_VAR_NUM * sizeof(uint32_t));
+    memset(system->round3_mq2lin, 0, IMQ_VAR_NUM * sizeof(uint32_t));
 
     // reversely transfer linear index to mq var index
     system->round3_lin2mq = (uint32_t *) malloc(800 * sizeof(uint32_t));
+    memset(system->round3_lin2mq, 0, 800 * sizeof(uint32_t));
 
     // linear dependency
-    system->round4_lin_dep = (uint32_t *) malloc(IMQ_VAR_NUM * (AMQ_VAR_NUM + 1) * sizeof(uint32_t));
+    system->round4_lin_dep = (uint8_t *) malloc(IMQ_VAR_NUM * (AMQ_VAR_NUM + 1) * sizeof(uint8_t));
+    memset(system->round4_lin_dep, 0, IMQ_VAR_NUM * (AMQ_VAR_NUM + 1) * sizeof(uint8_t));
 }
 
 void
@@ -71,19 +86,6 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
                     lin_system[k][v] ^= lin_system[i][v];
         }
     }
-
-    for (uint32_t i = 0; i < LIN_CONST_EQNUM; i++) {
-        for (uint32_t j = 0; j < 800; j++) {
-            if (lin_system[i][j]) {
-                // memcpy(lin_dep[j], it_tmp[i], 801);
-                // lin_dep[j][j] = 0;
-                memcpy(system->round3_lin_dep[j], lin_system[i], 801);
-                system->round3_lin_dep[j][j] = 0;
-                break;
-            }
-        }
-    }
-
     uint32_t fvar_offset = 0;
     for (uint32_t i = 0; i < 800; i++) {
         if (lin_pivot[i] == 0) {
@@ -94,6 +96,19 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
             system->round3_lin2mq[i] = DEP_PLACEMENT;
         }
     }
+    for (uint32_t i = 0; i < LIN_CONST_EQNUM; i++) {
+        for (uint32_t j = 0; j < 800; j++) {
+            if (lin_system[i][j] == 1) {
+                for (uint32_t k = j + 1; k < 800; k++) {
+                    if (lin_system[i][k] == 1) {
+                        system->round3_lin_dep[j][system->round3_lin2mq[k]] = 1;
+                    }
+                }
+                system->round3_lin_dep[j][IMQ_VAR_NUM] = lin_system[i][800];
+                break;
+            }
+        }
+    }
 }
 
 void
@@ -101,11 +116,11 @@ reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
     uint32_t eq_idx, var_idx, i, j;
 
     uint8_t **reduced_system = system->round3_append_system;
-    uint32_t **lin_dep = system->round3_lin_dep;
+    uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
     for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
-        PRINTF_STAMP("reducing append system\tequation %d...\n", eq_idx);
+        PRINTF_STAMP("reducing append system:\tequation %d...\n", eq_idx);
         memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
         uint32_t multix_1;
         uint32_t multix_2;
@@ -188,14 +203,15 @@ reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
 
 void
 reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
-    memset(system->round3_mq_system, 0, IMQ_XVAR_NUM * AMQ_LIN_EQNUM);
     uint32_t eq_idx, var_idx, i, j;
 
-    uint8_t **reduced_system = system->round3_mq_system;
-    uint32_t **lin_dep = system->round3_lin_dep;
+    uint8_t **reduced_system = system->round3_append_system;
+    uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
     for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
+        PRINTF_STAMP("reducing mq system:\tequation %d...\n", eq_idx);
+        memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
         uint32_t multix_1;
         uint32_t multix_2;
         for (multix_1 = 0; multix_1 < 800; multix_1++) {
@@ -203,7 +219,7 @@ reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
 
             for (multix_2 = multix_1; multix_2 < 800; multix_2++) {
                 var_idx = deg2midx2(multix_1, multix_2);
-                if (reduced_system[eq_idx][var_idx]) {
+                if (mqsystem[eq_idx][var_idx]) {
                     bool is_multix2_dep = (bool) (lin2mq[multix_2] == DEP_PLACEMENT);
 
                     if (is_multix1_dep && is_multix2_dep) {
@@ -260,7 +276,7 @@ reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
                     }
                 }
             }
-            if (reduced_system[eq_idx][deg2midx1(800, multix_1)]) {
+            if (mqsystem[eq_idx][deg2midx1(800, multix_1)]) {
                 if (is_multix1_dep) {
                     for (i = 0; i < IMQ_VAR_NUM; i++) {
                         if (lin_dep[multix_1][i])
@@ -271,21 +287,37 @@ reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
                 }
             }
         }
-        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= reduced_system[eq_idx][BMQ_XVAR_NUM - 1];
+        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= mqsystem[eq_idx][BMQ_XVAR_NUM - 1];
     }
+}
+
+void
+reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]) {
+
+}
+
+void
+guessingBitsToMqSystem(MathSystem *system,
+                       uint64_t guessingBits,
+                       uint8_t *mqbuffer,
+                       uint32_t *mq2lin,
+                       uint8_t *lin_dep) {
+
 }
 
 void
 freeMathSystem(MathSystem *system) {
     uint32_t i;
     for (i = 0; i < 800; i++)
-        free(system->round3_lin_dep[i]);
+        SFREE(system->round3_lin_dep[i]);
     for (i = 0; i < AMQ_LIN_EQNUM; i++)
-        free(system->round3_append_system[i]);
+        SFREE(system->round3_append_system[i]);
     for (i = 0; i < MQ_EQ_NUM; i++)
-        free(system->round3_mq_system);
+        SFREE(system->round3_mq_system[i]);
+    for (i = 0; i < LIN_ITER_EQNUM; i++)
+        SFREE(system->round3_iter_system[i]);
 
-    free(system->round3_mq2lin);
-    free(system->round3_lin2mq);
-    free(system->round4_lin_dep);
+    SFREE(system->round3_mq2lin);
+    SFREE(system->round3_lin2mq);
+    SFREE(system->round4_lin_dep);
 }
