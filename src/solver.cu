@@ -95,6 +95,8 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_mq_buffer, device_mbufer_size));
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_output_buffer, device_obufer_size));
 
+    initMathSystem(&keccakSolver->mathSystem);
+
     loadSystemsFromFile(keccakSolver);
 }
 
@@ -175,6 +177,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 __host__ void
 keccakSolverExit(KeccakSolver *keccakSolver) {
     options_free(&keccakSolver->options);
+    freeMathSystem(&keccakSolver->mathSystem);
     threadpool_destroy(keccakSolver->threadpool, 0);
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaFree(keccakSolver->device_mq_buffer));
