@@ -35,6 +35,18 @@ typedef struct MathSystem {
   uint8_t *round4_lin_dep;
 } MathSystem;
 
+typedef struct r3mqarg_t {
+  MathSystem *mathSystem;
+  uint32_t eq_idx;
+  uint8_t **mqsystem;
+} r3mqarg_t;
+
+typedef struct r3aparg_t {
+  MathSystem *mathSystem;
+  uint32_t eq_idx;
+  uint8_t **append_system;
+} r3aparg_t;
+
 void
 initMathSystem(MathSystem *system);
 
@@ -42,10 +54,10 @@ void
 extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_EQNUM][801]);
 
 void
-reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system);
+reduceRound3AppendSystem(void* r3aparg);
 
 void
-reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem);
+reduceRound3MQSystem(void* r3mqarg);
 
 void
 reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]);

@@ -22,7 +22,7 @@
 #define MQ_XVAR_NUM ((((MQ_VAR_NUM) * ((MQ_VAR_NUM) + 1)) / 2) + MQ_VAR_NUM + 1)
 #define MQ_SYSTEM_SIZE ((MQ_EQ_NUM) * (MQ_XVAR_NUM))
 
-#define CHUNK_SIZE 1 //0x2000
+#define CHUNK_SIZE 0x2000
 #define GPU_THREADS_PER_BLOCK 64
 #define GPU_BLOCK_NUM ((CHUNK_SIZE) / (GPU_THREADS_PER_BLOCK))
 

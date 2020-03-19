@@ -89,10 +89,29 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     fclose(fi);
     fclose(fa);
 
+    r3mqarg_t mqargs[MQ_EQ_NUM];
+    r3aparg_t apargs[AMQ_LIN_EQNUM];
+
     extractRound3LinearDependency(&keccakSolver->mathSystem, constant_constr);
     reduceIterativeConstraints(&keccakSolver->mathSystem, iterative_constr);
-    reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
-    reduceRound3MQSystem(&keccakSolver->mathSystem, mq_system);
+
+//    reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
+    for (i = 0; i < AMQ_LIN_EQNUM; i++) {
+        apargs[i].eq_idx = i;
+        apargs[i].mathSystem = &keccakSolver->mathSystem;
+        apargs[i].append_system = append_system;
+        threadpool_add(keccakSolver->threadpool, reduceRound3AppendSystem, (void *) &apargs[i], 0);
+    }
+
+//    reduceRound3MQSystem(&keccakSolver->mathSystem, mq_system);
+    for (i = 0; i < MQ_EQ_NUM; i++) {
+        mqargs[i].eq_idx = i;
+        mqargs[i].mathSystem = &keccakSolver->mathSystem;
+        mqargs[i].mqsystem = mq_system;
+        threadpool_add(keccakSolver->threadpool, reduceRound3MQSystem, (void *) &mqargs[i], 0);
+    }
+    threadpool_join(keccakSolver->threadpool, 0);
+
     PRINTF_STAMP("all reductions have finished\n");
 
     for (i = 0; i < MQ_EQ_NUM; i++)

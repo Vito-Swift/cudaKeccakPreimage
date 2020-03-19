@@ -114,183 +114,189 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
 }
 
 void
-reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
-    uint32_t eq_idx, var_idx, i, j;
+reduceRound3AppendSystem(void *r3aparg) {
+    r3aparg_t *args = (r3aparg_t *) r3aparg;
+    MathSystem *system = args->mathSystem;
+    uint32_t eq_idx = args->eq_idx;
+    uint8_t **append_system = args->append_system;
+
+    uint32_t var_idx, i, j;
 
     uint8_t **reduced_system = system->round3_append_system;
     uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
-    for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
-        PRINTF_STAMP("reducing append system:\tequation %d...\n", eq_idx);
-        memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
-        uint32_t multix_1;
-        uint32_t multix_2;
-        for (multix_1 = 0; multix_1 < 800; multix_1++) {
-            bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
+    PRINTF_STAMP("reducing append system:\tequation %d...\n", eq_idx);
+    memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
+    uint32_t multix_1;
+    uint32_t multix_2;
+    for (multix_1 = 0; multix_1 < 800; multix_1++) {
+        bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
 
-            for (multix_2 = multix_1; multix_2 < 800; multix_2++) {
-                var_idx = deg2midx2(multix_1, multix_2);
-                if (append_system[eq_idx][var_idx]) {
-                    bool is_multix2_dep = (bool) (lin2mq[multix_2] == DEP_PLACEMENT);
+        for (multix_2 = multix_1; multix_2 < 800; multix_2++) {
+            var_idx = deg2midx2(multix_1, multix_2);
+            if (append_system[eq_idx][var_idx]) {
+                bool is_multix2_dep = (bool) (lin2mq[multix_2] == DEP_PLACEMENT);
 
-                    if (is_multix1_dep && is_multix2_dep) {
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            for (j = 0; j < IMQ_VAR_NUM; j++) {
-                                if (lin_dep[multix_1][i] && lin_dep[multix_2][j])
-                                    reduced_system[eq_idx][deg2midx2(i, j)] ^= 1;
-                            }
+                if (is_multix1_dep && is_multix2_dep) {
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        for (j = 0; j < IMQ_VAR_NUM; j++) {
+                            if (lin_dep[multix_1][i] && lin_dep[multix_2][j])
+                                reduced_system[eq_idx][deg2midx2(i, j)] ^= 1;
                         }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM]) {
-                            for (i = 0; i < IMQ_VAR_NUM; i++) {
-                                if (lin_dep[multix_2][i])
-                                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_2][IMQ_VAR_NUM]) {
-                            for (i = 0; i < IMQ_VAR_NUM; i++) {
-                                if (lin_dep[multix_1][i])
-                                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM] && lin_dep[multix_2][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= 1;
-
-                    } else if (is_multix1_dep) {
-                        uint32_t tmp_idx = system->round3_lin2mq[multix_2];
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            if (lin_dep[multix_1][i]) {
-                                reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
-
-                    } else if (is_multix2_dep) {
-                        uint32_t tmp_idx = system->round3_lin2mq[multix_1];
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            if (lin_dep[multix_1][i]) {
-                                reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_2][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
-
-                    } else {
-                        uint32_t tmp_idx1 = system->round3_lin2mq[multix_1];
-                        uint32_t tmp_idx2 = system->round3_lin2mq[multix_2];
-                        reduced_system[eq_idx][deg2midx2(tmp_idx1, tmp_idx2)] ^= 1;
                     }
-                }
-            }
-            if (append_system[eq_idx][deg2midx1(800, multix_1)]) {
-                if (is_multix1_dep) {
-                    for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
-                        if (lin_dep[multix_1][i])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM]) {
+                        for (i = 0; i < IMQ_VAR_NUM; i++) {
+                            if (lin_dep[multix_2][i])
+                                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                        }
                     }
+
+                    if (lin_dep[multix_2][IMQ_VAR_NUM]) {
+                        for (i = 0; i < IMQ_VAR_NUM; i++) {
+                            if (lin_dep[multix_1][i])
+                                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM] && lin_dep[multix_2][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= 1;
+
+                } else if (is_multix1_dep) {
+                    uint32_t tmp_idx = system->round3_lin2mq[multix_2];
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        if (lin_dep[multix_1][i]) {
+                            reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
+
+                } else if (is_multix2_dep) {
+                    uint32_t tmp_idx = system->round3_lin2mq[multix_1];
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        if (lin_dep[multix_1][i]) {
+                            reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_2][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
+
                 } else {
-                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, lin2mq[multix_1])] ^= 1;
+                    uint32_t tmp_idx1 = system->round3_lin2mq[multix_1];
+                    uint32_t tmp_idx2 = system->round3_lin2mq[multix_2];
+                    reduced_system[eq_idx][deg2midx2(tmp_idx1, tmp_idx2)] ^= 1;
                 }
             }
         }
-        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= append_system[eq_idx][BMQ_XVAR_NUM - 1];
+        if (append_system[eq_idx][deg2midx1(800, multix_1)]) {
+            if (is_multix1_dep) {
+                for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
+                    if (lin_dep[multix_1][i])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                }
+            } else {
+                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, lin2mq[multix_1])] ^= 1;
+            }
+        }
     }
+    reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= append_system[eq_idx][BMQ_XVAR_NUM - 1];
 }
 
 void
-reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
-    uint32_t eq_idx, var_idx, i, j;
+reduceRound3MQSystem(void *r3mqarg) {
+    r3mqarg_t *args = (r3mqarg_t *) r3mqarg;
+    MathSystem *system = args->mathSystem;
+    uint32_t eq_idx = args->eq_idx;
+    uint8_t **mqsystem = args->mqsystem;
+
+    uint32_t var_idx, i, j;
 
     uint8_t **reduced_system = system->round3_append_system;
     uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
-    for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
-        PRINTF_STAMP("reducing mq system:\tequation %d...\n", eq_idx);
-        memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
-        uint32_t multix_1;
-        uint32_t multix_2;
-        for (multix_1 = 0; multix_1 < 800; multix_1++) {
-            bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
+    PRINTF_STAMP("reducing mq system:\tequation %d...\n", eq_idx);
+    memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
+    uint32_t multix_1;
+    uint32_t multix_2;
+    for (multix_1 = 0; multix_1 < 800; multix_1++) {
+        bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
 
-            for (multix_2 = multix_1; multix_2 < 800; multix_2++) {
-                var_idx = deg2midx2(multix_1, multix_2);
-                if (mqsystem[eq_idx][var_idx]) {
-                    bool is_multix2_dep = (bool) (lin2mq[multix_2] == DEP_PLACEMENT);
+        for (multix_2 = multix_1; multix_2 < 800; multix_2++) {
+            var_idx = deg2midx2(multix_1, multix_2);
+            if (mqsystem[eq_idx][var_idx]) {
+                bool is_multix2_dep = (bool) (lin2mq[multix_2] == DEP_PLACEMENT);
 
-                    if (is_multix1_dep && is_multix2_dep) {
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            for (j = 0; j < IMQ_VAR_NUM; j++) {
-                                if (lin_dep[multix_1][i] && lin_dep[multix_2][j])
-                                    reduced_system[eq_idx][deg2midx2(i, j)] ^= 1;
-                            }
+                if (is_multix1_dep && is_multix2_dep) {
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        for (j = 0; j < IMQ_VAR_NUM; j++) {
+                            if (lin_dep[multix_1][i] && lin_dep[multix_2][j])
+                                reduced_system[eq_idx][deg2midx2(i, j)] ^= 1;
                         }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM]) {
-                            for (i = 0; i < IMQ_VAR_NUM; i++) {
-                                if (lin_dep[multix_2][i])
-                                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_2][IMQ_VAR_NUM]) {
-                            for (i = 0; i < IMQ_VAR_NUM; i++) {
-                                if (lin_dep[multix_1][i])
-                                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM] && lin_dep[multix_2][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= 1;
-
-                    } else if (is_multix1_dep) {
-                        uint32_t tmp_idx = system->round3_lin2mq[multix_2];
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            if (lin_dep[multix_1][i]) {
-                                reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_1][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
-
-                    } else if (is_multix2_dep) {
-                        uint32_t tmp_idx = system->round3_lin2mq[multix_1];
-                        for (i = 0; i < IMQ_VAR_NUM; i++) {
-                            if (lin_dep[multix_1][i]) {
-                                reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
-                            }
-                        }
-
-                        if (lin_dep[multix_2][IMQ_VAR_NUM])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
-
-                    } else {
-                        uint32_t tmp_idx1 = system->round3_lin2mq[multix_1];
-                        uint32_t tmp_idx2 = system->round3_lin2mq[multix_2];
-                        reduced_system[eq_idx][deg2midx2(tmp_idx1, tmp_idx2)] ^= 1;
                     }
-                }
-            }
-            if (mqsystem[eq_idx][deg2midx1(800, multix_1)]) {
-                if (is_multix1_dep) {
-                    for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
-                        if (lin_dep[multix_1][i])
-                            reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM]) {
+                        for (i = 0; i < IMQ_VAR_NUM; i++) {
+                            if (lin_dep[multix_2][i])
+                                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                        }
                     }
+
+                    if (lin_dep[multix_2][IMQ_VAR_NUM]) {
+                        for (i = 0; i < IMQ_VAR_NUM; i++) {
+                            if (lin_dep[multix_1][i])
+                                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM] && lin_dep[multix_2][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= 1;
+
+                } else if (is_multix1_dep) {
+                    uint32_t tmp_idx = system->round3_lin2mq[multix_2];
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        if (lin_dep[multix_1][i]) {
+                            reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_1][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
+
+                } else if (is_multix2_dep) {
+                    uint32_t tmp_idx = system->round3_lin2mq[multix_1];
+                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                        if (lin_dep[multix_1][i]) {
+                            reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
+                        }
+                    }
+
+                    if (lin_dep[multix_2][IMQ_VAR_NUM])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
+
                 } else {
-                    reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, lin2mq[multix_1])] ^= 1;
+                    uint32_t tmp_idx1 = system->round3_lin2mq[multix_1];
+                    uint32_t tmp_idx2 = system->round3_lin2mq[multix_2];
+                    reduced_system[eq_idx][deg2midx2(tmp_idx1, tmp_idx2)] ^= 1;
                 }
             }
         }
-        reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= mqsystem[eq_idx][BMQ_XVAR_NUM - 1];
+        if (mqsystem[eq_idx][deg2midx1(800, multix_1)]) {
+            if (is_multix1_dep) {
+                for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
+                    if (lin_dep[multix_1][i])
+                        reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
+                }
+            } else {
+                reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, lin2mq[multix_1])] ^= 1;
+            }
+        }
     }
+    reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= mqsystem[eq_idx][BMQ_XVAR_NUM - 1];
 }
 
 void
@@ -521,7 +527,7 @@ guessingBitsToMqSystem(const MathSystem *system,
 
 
     /* update linear dependency */
-
+    exit(0);
 }
 
 void
