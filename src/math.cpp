@@ -7,8 +7,6 @@
 #include "params.h"
 #include "utils.h"
 
-#define DEP_PLACEMENT 0xffffffff
-
 #define eqvar(i, j, size) \
         ((i) * (size) + (j))
 
@@ -121,6 +119,8 @@ reduceRound3AppendSystem(void *r3aparg) {
     uint8_t **append_system = args->append_system;
 
     uint32_t var_idx, i, j;
+    uint32_t multix_1;
+    uint32_t multix_2;
 
     uint8_t **reduced_system = system->round3_append_system;
     uint8_t **lin_dep = system->round3_lin_dep;
@@ -128,8 +128,6 @@ reduceRound3AppendSystem(void *r3aparg) {
 
     PRINTF_STAMP("reducing append system:\tequation %d...\n", eq_idx);
     memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
-    uint32_t multix_1;
-    uint32_t multix_2;
     for (multix_1 = 0; multix_1 < 800; multix_1++) {
         bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
 
@@ -314,7 +312,7 @@ reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER
                 }
             }
         }
-        system->round3_iter_system[i][800] ^= iterative_constr[i][800];
+        system->round3_iter_system[i][IMQ_VAR_NUM] ^= iterative_constr[i][800];
     }
 }
 
@@ -478,6 +476,11 @@ guessingBitsToMqSystem(const MathSystem *system,
             }
         }
         append_lin_system[eq_idx][AMQ_XVAR_NUM - 1] ^= system->round3_append_system[eq_idx][IMQ_XVAR_NUM - 1];
+        for (i = 0; i < AMQ_VAR_NUM; i++)
+            for (j = i; j < AMQ_VAR_NUM; j++)
+                if (append_lin_system[eq_idx][deg2midx2(i, j)])
+                    printf("%d %d\n", i, j);
+        exit(0);
     }
 
 
@@ -513,20 +516,17 @@ guessingBitsToMqSystem(const MathSystem *system,
         }
     }
 
-    for (i = 0; i < AMQ_LIN_EQNUM; i++) {
-        for (j = 0; j < AMQ_VAR_NUM + 1; j++) {
-            printf("%d", append_lin_part[i][j]);
-        }
-        printf("\n");
-    }
-
     /* back substitution */
+    uint32_t mq_fvar_offset = 0;
+
+    /* update linear dependency */
+
+
+    /* reduce round3 mq system */
 
 
     /* copy mq system to memory */
 
-
-    /* update linear dependency */
     exit(0);
 }
 

@@ -19,8 +19,8 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     char ch;
     uint32_t i, j;
 
-    uint8_t constant_constr[LIN_ITER_EQNUM][801];
-    uint8_t iterative_constr[LIN_CONST_EQNUM][801];
+    uint8_t constant_constr[LIN_CONST_EQNUM][801];
+    uint8_t iterative_constr[LIN_ITER_EQNUM][801];
     uint8_t *mq_system[MQ_EQ_NUM];
     for (i = 0; i < MQ_EQ_NUM; i++)
         mq_system[i] = (uint8_t *) malloc(BMQ_XVAR_NUM * sizeof(uint8_t));
@@ -95,7 +95,7 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     extractRound3LinearDependency(&keccakSolver->mathSystem, constant_constr);
     reduceIterativeConstraints(&keccakSolver->mathSystem, iterative_constr);
 
-//    reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
+    // reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
     for (i = 0; i < AMQ_LIN_EQNUM; i++) {
         apargs[i].eq_idx = i;
         apargs[i].mathSystem = &keccakSolver->mathSystem;
@@ -103,7 +103,7 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
         threadpool_add(keccakSolver->threadpool, reduceRound3AppendSystem, (void *) &apargs[i], 0);
     }
 
-//    reduceRound3MQSystem(&keccakSolver->mathSystem, mq_system);
+    // reduceRound3MQSystem(&keccakSolver->mathSystem, mq_system);
     for (i = 0; i < MQ_EQ_NUM; i++) {
         mqargs[i].eq_idx = i;
         mqargs[i].mathSystem = &keccakSolver->mathSystem;
@@ -111,6 +111,99 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
         threadpool_add(keccakSolver->threadpool, reduceRound3MQSystem, (void *) &mqargs[i], 0);
     }
     threadpool_join(keccakSolver->threadpool, 0);
+
+    uint8_t eval[800] = {0};
+    for (i = 0; i < 800; i++) {
+        if (keccakSolver->mathSystem.round3_lin2mq[i] == DEP_PLACEMENT) {
+            for (j = 0; j < IMQ_VAR_NUM + 1; j++) {
+                eval[i] ^= keccakSolver->mathSystem.round3_lin_dep[i][j];
+            }
+        } else {
+            eval[i] = 1;
+        }
+    }
+
+    // validate the reduction result
+    for (uint32_t eq_idx = 0; eq_idx < LIN_ITER_EQNUM; eq_idx++) {
+        uint32_t verifyResult1 = 0;
+        uint32_t verifyResult2 = 0;
+        for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
+            if (keccakSolver->mathSystem.round3_iter_system[eq_idx][i])
+                verifyResult1 ^= 1;
+        }
+        for (i = 0; i < 800; i++) {
+            if (iterative_constr[eq_idx][i])
+                verifyResult2 ^= eval[i];
+        }
+        if (iterative_constr[eq_idx][800])
+            verifyResult2 ^= 1;
+        if (verifyResult1 != verifyResult2) {
+            EXIT_WITH_MSG("reduced iterative constraints is not equal with the original ones, "
+                          "please check the implementation.\n");
+        }
+    }
+
+    for (uint32_t eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+        uint32_t verifyResult1 = 0;
+        uint32_t verifyResult2 = 0;
+        for (i = 0; i < IMQ_VAR_NUM; i++) {
+            for (j = i; j < IMQ_VAR_NUM; j++) {
+                if (keccakSolver->mathSystem.round3_mq_system[eq_idx][deg2midx2(i, j)])
+                    verifyResult1 ^= 1;
+            }
+            if (keccakSolver->mathSystem.round3_mq_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)])
+                verifyResult1 ^= 1;
+        }
+        if (keccakSolver->mathSystem.round3_mq_system[eq_idx][IMQ_XVAR_NUM - 1])
+            verifyResult1 ^= 1;
+
+        for (i = 0; i < 800; i++) {
+            for (j = i; j < 800; j++) {
+                if (mq_system[eq_idx][deg2midx2(i, j)])
+                    verifyResult2 ^= (eval[i] & eval[j]);
+            }
+            if (mq_system[eq_idx][deg2midx1(800, i)])
+                verifyResult2 ^= eval[i];
+        }
+        if (mq_system[eq_idx][BMQ_XVAR_NUM - 1])
+            verifyResult2 ^= 1;
+
+        if (verifyResult1 != verifyResult2) {
+            EXIT_WITH_MSG("reduced mq system is not equal with the original system, "
+                          "please check the implementation.\n");
+        }
+    }
+
+    for (uint32_t eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
+        uint32_t verifyResult1 = 0;
+        uint32_t verifyResult2 = 0;
+        for (i = 0; i < IMQ_VAR_NUM; i++) {
+            for (j = i; j < IMQ_VAR_NUM; j++) {
+                if (keccakSolver->mathSystem.round3_append_system[eq_idx][deg2midx2(i, j)])
+                    verifyResult1 ^= 1;
+            }
+            if (keccakSolver->mathSystem.round3_append_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)])
+                verifyResult1 ^= 1;
+        }
+        if (keccakSolver->mathSystem.round3_append_system[eq_idx][IMQ_XVAR_NUM - 1])
+            verifyResult1 ^= 1;
+
+        for (i = 0; i < 800; i++) {
+            for (j = i; j < 800; j++) {
+                if (append_system[eq_idx][deg2midx2(i, j)])
+                    verifyResult2 ^= (eval[i] & eval[j]);
+            }
+            if (append_system[eq_idx][deg2midx1(800, i)])
+                verifyResult2 ^= eval[i];
+        }
+        if (append_system[eq_idx][BMQ_XVAR_NUM - 1])
+            verifyResult2 ^= 1;
+
+        if (verifyResult1 != verifyResult2) {
+            EXIT_WITH_MSG("reduced append system is not equal with the original system, "
+                          "please check the implementation.\n");
+        }
+    }
 
     PRINTF_STAMP("all reductions have finished\n");
 

@@ -25,6 +25,8 @@
 #include "threadpool.h"
 #include "params.h"
 
+#define DEP_PLACEMENT 0xffffffff
+
 typedef struct MathSystem {
   uint8_t *round3_lin_dep[800];
   uint32_t *round3_mq2lin;
