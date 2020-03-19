@@ -175,7 +175,7 @@ reduceRound3AppendSystem(void *r3aparg) {
                 } else if (is_multix2_dep) {
                     uint32_t tmp_idx = system->round3_lin2mq[multix_1];
                     for (i = 0; i < IMQ_VAR_NUM; i++) {
-                        if (lin_dep[multix_1][i]) {
+                        if (lin_dep[multix_2][i]) {
                             reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
                         }
                     }
@@ -213,7 +213,7 @@ reduceRound3MQSystem(void *r3mqarg) {
 
     uint32_t var_idx, i, j;
 
-    uint8_t **reduced_system = system->round3_append_system;
+    uint8_t **reduced_system = system->round3_mq_system;
     uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
@@ -255,7 +255,7 @@ reduceRound3MQSystem(void *r3mqarg) {
                         reduced_system[eq_idx][IMQ_XVAR_NUM - 1] ^= 1;
 
                 } else if (is_multix1_dep) {
-                    uint32_t tmp_idx = system->round3_lin2mq[multix_2];
+                    uint32_t tmp_idx = lin2mq[multix_2];
                     for (i = 0; i < IMQ_VAR_NUM; i++) {
                         if (lin_dep[multix_1][i]) {
                             reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
@@ -266,9 +266,9 @@ reduceRound3MQSystem(void *r3mqarg) {
                         reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
 
                 } else if (is_multix2_dep) {
-                    uint32_t tmp_idx = system->round3_lin2mq[multix_1];
+                    uint32_t tmp_idx = lin2mq[multix_1];
                     for (i = 0; i < IMQ_VAR_NUM; i++) {
-                        if (lin_dep[multix_1][i]) {
+                        if (lin_dep[multix_2][i]) {
                             reduced_system[eq_idx][deg2midx2(tmp_idx, i)] ^= 1;
                         }
                     }
@@ -277,8 +277,8 @@ reduceRound3MQSystem(void *r3mqarg) {
                         reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, tmp_idx)] ^= 1;
 
                 } else {
-                    uint32_t tmp_idx1 = system->round3_lin2mq[multix_1];
-                    uint32_t tmp_idx2 = system->round3_lin2mq[multix_2];
+                    uint32_t tmp_idx1 = lin2mq[multix_1];
+                    uint32_t tmp_idx2 = lin2mq[multix_2];
                     reduced_system[eq_idx][deg2midx2(tmp_idx1, tmp_idx2)] ^= 1;
                 }
             }
