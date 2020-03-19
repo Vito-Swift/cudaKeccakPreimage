@@ -22,6 +22,7 @@
 #include <cstring>
 #include <iostream>
 
+#include "threadpool.h"
 #include "params.h"
 
 typedef struct MathSystem {

@@ -190,7 +190,7 @@ reduceRound3AppendSystem(MathSystem *system, uint8_t **append_system) {
             }
             if (append_system[eq_idx][deg2midx1(800, multix_1)]) {
                 if (is_multix1_dep) {
-                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                    for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
                         if (lin_dep[multix_1][i])
                             reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
                     }
@@ -280,7 +280,7 @@ reduceRound3MQSystem(MathSystem *system, uint8_t **mqsystem) {
             }
             if (mqsystem[eq_idx][deg2midx1(800, multix_1)]) {
                 if (is_multix1_dep) {
-                    for (i = 0; i < IMQ_VAR_NUM; i++) {
+                    for (i = 0; i < IMQ_VAR_NUM + 1; i++) {
                         if (lin_dep[multix_1][i])
                             reduced_system[eq_idx][deg2midx1(IMQ_VAR_NUM, i)] ^= 1;
                     }
@@ -324,7 +324,8 @@ guessingBitsToMqSystem(const MathSystem *system,
 
     /* create a temporary copy of reduced iterative system */
     uint8_t it_tmp[LIN_ITER_EQNUM][IMQ_VAR_NUM + 1];
-    memcpy(it_tmp, system->round3_iter_system, LIN_ITER_EQNUM * (IMQ_VAR_NUM + 1));
+    for (i = 0; i < LIN_ITER_EQNUM; i++)
+        memcpy(it_tmp[i], system->round3_iter_system[i], IMQ_VAR_NUM + 1);
 
     /* assign the rhs coef according to guessing bits */
     for (i = 0; i < LIN_ITER_EQNUM; i++) {
@@ -362,7 +363,9 @@ guessingBitsToMqSystem(const MathSystem *system,
 
     /* record free variables after adding iterative constraints */
     uint32_t fvar_offset = 0;
+    // mq2lin
     uint32_t fvar_index[AMQ_VAR_NUM];
+    // lin2mq
     uint32_t rfvar_index[IMQ_VAR_NUM];
     for (i = 0; i < IMQ_VAR_NUM; i++) {
         if (lin_pivot[i] == 0) {
@@ -381,7 +384,7 @@ guessingBitsToMqSystem(const MathSystem *system,
             if (it_tmp[i][j] == 1) {
                 for (k = j + 1; k < IMQ_VAR_NUM; k++) {
                     if (it_tmp[i][k] == 1)
-                        tmp_lindep[j][fvar_index[k]] = 1;
+                        tmp_lindep[j][rfvar_index[k]] = 1;
                 }
                 tmp_lindep[j][AMQ_VAR_NUM] = it_tmp[i][IMQ_VAR_NUM];
                 break;
@@ -459,7 +462,7 @@ guessingBitsToMqSystem(const MathSystem *system,
             }
             if (system->round3_append_system[eq_idx][deg2midx1(IMQ_VAR_NUM, multix_1)]) {
                 if (is_multix1_dep) {
-                    for (i = 0; i < AMQ_VAR_NUM; i++) {
+                    for (i = 0; i < AMQ_VAR_NUM + 1; i++) {
                         if (tmp_lindep[multix_1][i])
                             append_lin_system[eq_idx][deg2midx1(AMQ_VAR_NUM, i)] ^= 1;
                     }
@@ -471,10 +474,54 @@ guessingBitsToMqSystem(const MathSystem *system,
         append_lin_system[eq_idx][AMQ_XVAR_NUM - 1] ^= system->round3_append_system[eq_idx][IMQ_XVAR_NUM - 1];
     }
 
+
     /* use linearized append system to reduce 10 variables in mq system */
+    uint8_t append_lin_part[AMQ_LIN_EQNUM][AMQ_VAR_NUM + 1];
+    for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++)
+        memcpy(append_lin_part[eq_idx], &append_lin_system[eq_idx][deg2midx1(AMQ_VAR_NUM, 0)], AMQ_VAR_NUM + 1);
+
+    uint8_t append_lin_pivot[AMQ_VAR_NUM] = {0};
+    uint8_t append_tmprow[AMQ_VAR_NUM + 1] = {0};
+    for (i = 0; i < AMQ_LIN_EQNUM; i++) {
+        for (j = 0; j < AMQ_VAR_NUM; j++) {
+            for (k = i; k < AMQ_LIN_EQNUM; k++) {
+                if (append_lin_part[k][j])
+                    break;
+            }
+            if (k != AMQ_LIN_EQNUM)
+                break;
+        }
+        if (j == AMQ_VAR_NUM)
+            continue;
+
+        memcpy(append_tmprow, append_lin_part[k], AMQ_VAR_NUM + 1);
+        memcpy(append_lin_part[k], append_lin_part[i], AMQ_VAR_NUM + 1);
+        memcpy(append_lin_part[i], append_tmprow, AMQ_VAR_NUM + 1);
+
+        append_lin_pivot[j] = 1;
+
+        for (k = 0; k < AMQ_LIN_EQNUM; k++) {
+            if (append_lin_part[k][j] && k != i)
+                for (uint32_t v = j; v < AMQ_VAR_NUM + 1; v++)
+                    append_lin_part[k][v] ^= append_lin_part[i][v];
+        }
+    }
+
+    for (i = 0; i < AMQ_LIN_EQNUM; i++) {
+        for (j = 0; j < AMQ_VAR_NUM + 1; j++) {
+            printf("%d", append_lin_part[i][j]);
+        }
+        printf("\n");
+    }
+
+    /* back substitution */
 
 
     /* copy mq system to memory */
+
+
+    /* update linear dependency */
+
 }
 
 void
