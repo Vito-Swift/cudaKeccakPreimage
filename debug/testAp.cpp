@@ -238,6 +238,6 @@ int main() {
 //            printf("\n");
 //        }
 //    }
-//    appendReduce();
+    appendReduce();
     return 0;
 }

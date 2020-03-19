@@ -50,8 +50,8 @@ void
 reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]);
 
 void
-guessingBitsToMqSystem(MathSystem *system,
-                       uint64_t guessingBits,
+guessingBitsToMqSystem(const MathSystem *system,
+                       const uint64_t guessingBits,
                        uint8_t *mqbuffer,
                        uint32_t *mq2lin,
                        uint8_t *lin_dep);

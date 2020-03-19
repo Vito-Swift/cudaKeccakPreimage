@@ -90,9 +90,10 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     fclose(fa);
 
     extractRound3LinearDependency(&keccakSolver->mathSystem, constant_constr);
+    reduceIterativeConstraints(&keccakSolver->mathSystem, iterative_constr);
     reduceRound3AppendSystem(&keccakSolver->mathSystem, append_system);
     reduceRound3MQSystem(&keccakSolver->mathSystem, mq_system);
-    reduceIterativeConstraints(&keccakSolver->mathSystem, iterative_constr);
+    PRINTF_STAMP("all reductions have finished\n");
 
     for (i = 0; i < MQ_EQ_NUM; i++)
         SFREE(mq_system[i]);

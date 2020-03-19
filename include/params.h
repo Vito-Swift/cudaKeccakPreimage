@@ -14,6 +14,7 @@
 #define IMQ_VAR_NUM 94
 #define IMQ_XVAR_NUM ((((IMQ_VAR_NUM) * ((IMQ_VAR_NUM) + 1)) / 2) + IMQ_VAR_NUM + 1)
 #define AMQ_VAR_NUM 41
+#define AMQ_XVAR_NUM ((((AMQ_VAR_NUM) * ((AMQ_VAR_NUM) + 1)) / 2) + AMQ_VAR_NUM + 1)
 #define AMQ_LIN_EQNUM 10
 
 #define MQ_VAR_NUM 31
@@ -21,7 +22,7 @@
 #define MQ_XVAR_NUM ((((MQ_VAR_NUM) * ((MQ_VAR_NUM) + 1)) / 2) + MQ_VAR_NUM + 1)
 #define MQ_SYSTEM_SIZE ((MQ_EQ_NUM) * (MQ_XVAR_NUM))
 
-#define CHUNK_SIZE 0x2000
+#define CHUNK_SIZE 1 //0x2000
 #define GPU_THREADS_PER_BLOCK 64
 #define GPU_BLOCK_NUM ((CHUNK_SIZE) / (GPU_THREADS_PER_BLOCK))
 
