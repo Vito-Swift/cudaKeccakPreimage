@@ -22,6 +22,14 @@ ROR32(uint32_t x, uint32_t a) {
     return (x >> a) | (x << (32 - a));
 }
 
+inline void printHash(uint32_t hash[3]) {
+
+}
+
+inline void printStatus(uint32_t A[5][5]) {
+
+}
+
 bool cpu_VerifyKeccakResult(const uint32_t A[5][5]);
 
 #endif //KECCAKSOLVER_KECCAK_H

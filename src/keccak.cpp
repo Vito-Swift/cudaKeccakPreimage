@@ -271,6 +271,7 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
     bit_diff += __builtin_popcount(result[0] ^ 0x751A16E5);
     bit_diff += __builtin_popcount(result[1] ^ 0xE495E1E2);
     bit_diff += __builtin_popcount(result[2] ^ 0xFF220000);
+    PRINTF_STAMP("bit_diff: %d\n", bit_diff);
     return bit_diff <= DIFF_TOLERANCE;
 #undef u32
 #undef _ROR32
