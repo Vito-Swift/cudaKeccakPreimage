@@ -378,7 +378,6 @@ threadCheckResult(void *arg) {
     tcheckarg_t *args = (tcheckarg_t *) arg;
     uint8_t *result_buffer = args->result_buffer;
     uint32_t *lin2mq = args->lin2mq;
-    uint32_t *mq2lin = args->mq2lin;
     uint8_t *lindep = args->lindep;
 
     uint32_t i, j, idx_x, idx_y, idx_z;

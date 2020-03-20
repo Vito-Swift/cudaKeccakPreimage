@@ -16,7 +16,14 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
 #define _ROR32(x, a) ((((x)>>(a))|((x)<<(32-(a)))))
 #define u32 uint32_t
     u32 A_1_0[5][5];
-    memcpy(A_1_0, A, sizeof(uint32_t) * 25);
+    for (uint32_t i = 0; i < 5; i++)
+        memcpy(A_1_0[i], A[i], sizeof(uint32_t) * 5);
+    assert(A_1_0[0][4] == 0);
+    assert(A_1_0[1][4] == 0);
+    assert(A_1_0[2][4] == 0);
+    assert(A_1_0[3][4] == 0);
+    assert(A_1_0[4][4] == 0);
+    assert((A_1_0[4][3] & 0x3) == 0x3);
 
     u32 A_1_1[5][5];
     for (int j = 0; j < 5; j++) {
