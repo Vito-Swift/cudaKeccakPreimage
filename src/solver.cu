@@ -402,9 +402,9 @@ threadCheckResult(void *arg) {
 
             if (lin2mq[i] == DEP_PLACEMENT) {
                 for (j = 0; j < MQ_VAR_NUM; j++) {
-                    val ^= (result_buffer[j] & lindep[i][j]);
+                    val ^= (result_buffer[j] & lindep[i * (MQ_VAR_NUM + 1) + j]);
                 }
-                val ^= (lindep[i][MQ_VAR_NUM]);
+                val ^= (lindep[i * (MQ_VAR_NUM + 1) + MQ_VAR_NUM]);
                 A[idx_x][idx_y] |= (val << idx_z);
             } else {
                 A[idx_x][idx_y] |= (result_buffer[lin2mq[i]] << idx_z);

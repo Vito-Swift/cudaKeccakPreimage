@@ -118,7 +118,7 @@ set(CXX_SRCS
         src/options.cpp
         src/utils.cpp
         src/threadpool.cpp
-        src/math.cpp
+        src/kmath.cpp
         src/keccak.cpp)
 
 set(CUDA_SRCS

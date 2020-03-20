@@ -8,7 +8,7 @@
 #include "options.h"
 #include "cuda_utils.h"
 #include "threadpool.h"
-#include "math.h"
+#include "kmath.h"
 
 typedef struct KeccakSolver {
   bool verbose;
