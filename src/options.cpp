@@ -86,7 +86,7 @@ options_parse(Options *options, int argc, char **argv) {
             case 0:
                 /* If opts option set a flag, don't do anything */
                 if (keccak_long_opts[opt_idx].flag == 0) {
-                    PRINTF_STAMP("option %s: %s\n", keccak_long_opts[opt_idx].name,
+                    PRINTF_STAMP("\toption %s: %s\n", keccak_long_opts[opt_idx].name,
                                  optarg ? optarg : "null");
                 }
                 break;
@@ -96,35 +96,35 @@ options_parse(Options *options, int argc, char **argv) {
                 exit(0);
 
             case OP_CLIN_FILE:copy_opt(&options->c_lin_analysis_file, optarg);
-                PRINTF_STAMP("option constant linear analysis file: %s\n", options->c_lin_analysis_file);
+                PRINTF_STAMP("\t\toption constant linear analysis file: %s\n", options->c_lin_analysis_file);
                 break;
 
             case OP_ALIN_FILE:copy_opt(&options->a_lin_analysis_file, optarg);
-                PRINTF_STAMP("option append linear analysis file: %s\n", options->a_lin_analysis_file);
+                PRINTF_STAMP("\t\toption append linear analysis file: %s\n", options->a_lin_analysis_file);
                 break;
 
             case OP_ILIN_FILE:copy_opt(&options->i_lin_analysis_file, optarg);
-                PRINTF_STAMP("option iterative linear analysis file: %s\n", options->i_lin_analysis_file);
+                PRINTF_STAMP("\t\toption iterative linear analysis file: %s\n", options->i_lin_analysis_file);
                 break;
 
             case OP_MQ_FILE:copy_opt(&options->mq_analysis_file, optarg);
-                PRINTF_STAMP("option mq analysis file: %s\n", options->mq_analysis_file);
+                PRINTF_STAMP("\t\toption mq analysis file: %s\n", options->mq_analysis_file);
                 break;
 
             case OP_GB_START: options->gbstart = strtoul(optarg, NULL, 0);
-                PRINTF_STAMP("option start guessing bits: 0x%lx\n", options->gbstart);
+                PRINTF_STAMP("\t\toption start guessing bits: 0x%lx\n", options->gbstart);
                 break;
 
             case OP_GB_END: options->gbend = strtoul(optarg, NULL, 0);
-                PRINTF_STAMP("option end gussing bits: 0x%lx\n", options->gbend);
+                PRINTF_STAMP("\t\toption end gussing bits: 0x%lx\n", options->gbend);
                 break;
 
             case OP_DEV_ID:options->dev_id = (uint32_t) atoi(optarg);
-                PRINTF_STAMP("option dev id: %d\n", options->dev_id);
+                PRINTF_STAMP("\t\toption dev id: %d\n", options->dev_id);
                 break;
 
             case OP_THREAD_NUM:options->cpu_thread_num = (uint64_t) strtoul(optarg, NULL, 0);
-                PRINTF_STAMP("options cpu thread num: %ld\n", options->cpu_thread_num);
+                PRINTF_STAMP("\t\toptions cpu thread num: %ld\n", options->cpu_thread_num);
                 break;
 
             case '?':

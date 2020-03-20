@@ -23,6 +23,7 @@ typedef struct tmqarg_t {
   uint64_t guessingBits;
   uint8_t *mqbuffer;
   uint32_t *mq2lin;
+  uint32_t *lin2mq;
   uint8_t *lindep;
   MathSystem *mathSystem;
 } tmqarg_t;
@@ -31,6 +32,7 @@ typedef struct tcheckarg_t {
   uint8_t *result_buffer;
   uint8_t *lindep;
   uint32_t *mq2lin;
+  uint32_t *lin2mq;
   bool *preimage_found;
 } tcheckarg_t;
 

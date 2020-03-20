@@ -126,7 +126,7 @@ reduceRound3AppendSystem(void *r3aparg) {
     uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
-    PRINTF_STAMP("reducing append system:\tequation %d...\n", eq_idx);
+    PRINTF_STAMP("\t\treducing append system:\tequation %d...\n", eq_idx);
     memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
     for (multix_1 = 0; multix_1 < 800; multix_1++) {
         bool is_multix1_dep = (bool) (lin2mq[multix_1] == DEP_PLACEMENT);
@@ -217,7 +217,7 @@ reduceRound3MQSystem(void *r3mqarg) {
     uint8_t **lin_dep = system->round3_lin_dep;
     uint32_t *lin2mq = system->round3_lin2mq;
 
-    PRINTF_STAMP("reducing mq system:\tequation %d...\n", eq_idx);
+    PRINTF_STAMP("\t\treducing mq system:\tequation %d...\n", eq_idx);
     memset(reduced_system[eq_idx], 0, IMQ_XVAR_NUM);
     uint32_t multix_1;
     uint32_t multix_2;
@@ -300,7 +300,7 @@ reduceRound3MQSystem(void *r3mqarg) {
 void
 reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]) {
     uint32_t i, j, k;
-    PRINTF_STAMP("reducing round 3 iterative constraints...\n");
+    PRINTF_STAMP("\t\treducing round 3 iterative constraints...\n");
     for (i = 0; i < LIN_ITER_EQNUM; i++) {
         for (j = 0; j < 800; j++) {
             if (iterative_constr[i][j]) {
@@ -321,6 +321,7 @@ guessingBitsToMqSystem(const MathSystem *system,
                        const uint64_t guessingBits,
                        uint8_t *mqbuffer,
                        uint32_t *mq2lin,
+                       uint32_t *lin2mq,
                        uint8_t *lin_dep) {
     uint32_t i = 0;
     uint32_t j = 0;
@@ -717,7 +718,12 @@ guessingBitsToMqSystem(const MathSystem *system,
     }
 
     /* copy mq system to memory */
-
+    for (i = 0; i < 800; i++)
+        memcpy(lin_dep + i * (MQ_VAR_NUM + 1), total_lindep[i], (MQ_VAR_NUM + 1) * sizeof(uint8_t));
+    for (i = 0; i < MQ_EQ_NUM; i++)
+        memcpy(mqbuffer + i * (MQ_XVAR_NUM), mqsystem[i], (MQ_XVAR_NUM) * sizeof(uint8_t));
+    memcpy(lin2mq, total_rfvar_idx, 800 * sizeof(uint32_t));
+    memcpy(mq2lin, total_fvar_idx, MQ_VAR_NUM * sizeof(uint32_t));
 }
 
 void

@@ -56,10 +56,10 @@ void
 extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_EQNUM][801]);
 
 void
-reduceRound3AppendSystem(void* r3aparg);
+reduceRound3AppendSystem(void *r3aparg);
 
 void
-reduceRound3MQSystem(void* r3mqarg);
+reduceRound3MQSystem(void *r3mqarg);
 
 void
 reduceIterativeConstraints(MathSystem *system, uint8_t iterative_constr[LIN_ITER_EQNUM][801]);
@@ -69,6 +69,7 @@ guessingBitsToMqSystem(const MathSystem *system,
                        const uint64_t guessingBits,
                        uint8_t *mqbuffer,
                        uint32_t *mq2lin,
+                       uint32_t *lin2mq,
                        uint8_t *lin_dep);
 
 void
