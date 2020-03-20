@@ -4,15 +4,9 @@
 
 #include "solver.h"
 
+#include "mq.h"
 #include "threadpool.h"
 #include "params.h"
-
-
-// linear dependency passed to thread
-__constant__ uint8_t lin_dep[800][MQ_VAR_NUM + 1];
-
-// mq index (upto 31) to linear index (upto 800)
-__constant__ uint32_t mqidx2lin[MQ_VAR_NUM];
 
 __host__ void
 loadSystemsFromFile(KeccakSolver *keccakSolver) {
@@ -239,8 +233,8 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     const size_t device_mbufer_size = CHUNK_SIZE * MQ_SYSTEM_SIZE * sizeof(uint8_t);
     const size_t device_obufer_size = CHUNK_SIZE * MQ_VAR_NUM * sizeof(uint8_t);
     PRINTF_STAMP("[+] Allocate buffer on GPU\n");
-    PRINTF_STAMP("\t\tdevice_mbuffer_size = 0x%lx\n", device_mbufer_size);
-    PRINTF_STAMP("\t\tdevice_obuffer_size = 0x%lx\n", device_obufer_size);
+    PRINTF_STAMP("\t\tdevice_mbuffer_size = 0x%lx bytes\n", device_mbufer_size);
+    PRINTF_STAMP("\t\tdevice_obuffer_size = 0x%lx bytes\n", device_obufer_size);
 
     CUDA_CHECK(cudaSetDevice(keccakSolver->options.dev_id));
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -342,10 +336,12 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
         /* check flag */
         if (preimage_found) {
-            PRINTF_STAMP("[-] One valid pre-image found\n");
+            PRINTF_STAMP("[-] Valid pre-image found\n");
+            PRINTF_STAMP("[-] Terminating...\n");
             break;
         } else {
-            PRINTF_STAMP("[+] No valid pre-image found. Start a new chunk.\n");
+            PRINTF_STAMP("[+] No valid pre-image found\n");
+            PRINTF_STAMP("[+] Start a new chunk.\n");
         }
     }
     free(mqbuffer);

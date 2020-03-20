@@ -124,7 +124,8 @@ set(CXX_SRCS
 set(CUDA_SRCS
         src/keccak.cu
         src/solver.cu
-        src/cuda_utils.cu)
+        src/cuda_utils.cu
+        src/mq.cu)
 
 
 # ========================================================================== #
