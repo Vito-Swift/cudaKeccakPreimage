@@ -718,7 +718,6 @@ guessingBitsToMqSystem(const MathSystem *system,
 
     /* copy mq system to memory */
 
-    exit(0);
 }
 
 void

@@ -285,6 +285,8 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
     /* exhaustively search between gbstart and gbend */
     for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
+        PRINTF_STAMP("init new guessing bits, starts at: 0x%lx\n", gb);
+        PRINTF_STAMP("updating mq system\n");
 
         /* update MQ System */
         memset(mqbuffer, 0, CHUNK_SIZE * MQ_SYSTEM_SIZE);
@@ -301,14 +303,15 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
         }
         threadpool_join(keccakSolver->threadpool, 0);
 
-
+        PRINTF_STAMP("launch GPU kernel to solve mq systems\n");
         /* use gpu to solve mq system*/
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(keccakSolver->device_mq_buffer, mqbuffer, mbuffer_size, cudaMemcpyHostToDevice));
         kernelLoop << < GPU_BLOCK_NUM, tpb >> > (keccakSolver->device_output_buffer, keccakSolver->device_mq_buffer);
         CUDA_CHECK(cudaDeviceSynchronize());
 
-
+        PRINTF_STAMP("GPU kernel finished\n");
+        PRINTF_STAMP("verifying result...\n");
         /* check output result */
         CUDA_CHECK(cudaMemcpy(result_buffer, keccakSolver->device_output_buffer, rbuffer_size, cudaMemcpyDeviceToHost));
         tcheckarg_t check_args[CHUNK_SIZE];
@@ -323,8 +326,10 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
         /* check flag */
         if (preimage_found) {
-            PRINTF_STAMP("one valid pre-image found!\n");
+            PRINTF_STAMP("one valid pre-image found\n");
             break;
+        } else {
+            PRINTF_STAMP("no valid pre-image found\n");
         }
     }
     free(mqbuffer);
