@@ -18,12 +18,6 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
     u32 A_1_0[5][5];
     for (uint32_t i = 0; i < 5; i++)
         memcpy(A_1_0[i], A[i], sizeof(uint32_t) * 5);
-    assert(A_1_0[0][4] == 0);
-    assert(A_1_0[1][4] == 0);
-    assert(A_1_0[2][4] == 0);
-    assert(A_1_0[3][4] == 0);
-    assert(A_1_0[4][4] == 0);
-    assert((A_1_0[4][3] & 0x3) == 0x3);
 
     u32 A_1_1[5][5];
     for (int j = 0; j < 5; j++) {
@@ -66,22 +60,6 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
     A_1_2[4][3] = _ROR32(A_1_1[3][4], 24);
     A_1_2[4][4] = _ROR32(A_1_1[1][4], 2);
 
-    assert(A_1_2[1][0] == 0xFFFFFFFF);
-    assert(A_1_2[1][1] == 0xFFFFFFFF);
-    assert(A_1_2[1][2] == 0xFFFFFFFF);
-    assert(A_1_2[1][3] == 0xFFFFFFFF);
-    assert(A_1_2[1][4] == 0xFFFFFFFF);
-    assert(A_1_2[3][0] == 0);
-    assert(A_1_2[3][1] == 0);
-    assert(A_1_2[3][2] == 0);
-    assert(A_1_2[3][3] == 0);
-    assert(A_1_2[3][4] == 0);
-    assert(A_1_2[4][0] == A_1_2[0][0]);
-    assert(A_1_2[4][1] == A_1_2[0][1]);
-    assert(A_1_2[4][2] == A_1_2[0][2]);
-    assert(A_1_2[4][3] == A_1_2[0][3]);
-    assert(A_1_2[4][4] == A_1_2[0][4]);
-
     u32 A_2_0[5][5];
     A_2_0[0][0] = A_1_2[0][0] ^ RC1;
     A_2_0[1][0] = 0xFFFFFFFF;
@@ -108,9 +86,6 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
     A_2_0[2][4] = A_1_2[0][4] ^ A_1_2[2][4];
     A_2_0[3][4] = 0;
     A_2_0[4][4] = 0xFFFFFFFF;
-
-    assert(A_2_0[0][0] ^ A_2_0[0][1] ^ A_2_0[0][2] ^ A_2_0[0][3] ^ A_2_0[0][4] == ALPHA);
-    assert(A_2_0[2][0] ^ A_2_0[2][1] ^ A_2_0[2][2] ^ A_2_0[2][3] ^ A_2_0[2][4] == BETA);
 
     u32 A_2_1[5][5];
     for (int j = 0; j < 5; j++) {
