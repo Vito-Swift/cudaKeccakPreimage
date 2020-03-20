@@ -122,7 +122,7 @@ set(CXX_SRCS
         src/keccak.cpp)
 
 set(CUDA_SRCS
-        src/keccak.cu
+#        src/keccak.cu
         src/solver.cu
         src/cuda_utils.cu)
 
