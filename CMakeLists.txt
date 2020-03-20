@@ -33,11 +33,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(CheckCXXCompilerFlag)
 
-find_package(OpenMP)
-if (OPENMP_FOUND)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -pthread")
-endif ()
+#find_package(OpenMP)
+#if (OPENMP_FOUND)
+#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -pthread")
+#endif ()
 
 check_cxx_compiler_flag("-Wall" COMPILER_CXX_ALL_WARN)
 if (COMPILER_CXX_ALL_WARN)
@@ -90,9 +90,9 @@ if (COMPILER_CXX_NO_FP)
             CACHE STRING "Omit frame pointers" FORCE)
 endif ()
 
-check_cxx_compiler_flag("-ffast-math" COMPILER_CXX_OPTIMIZATION)
+check_cxx_compiler_flag("-O2" COMPILER_CXX_OPTIMIZATION)
 if (COMPILER_CXX_OPTIMIZATION)
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3"
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2"
             CACHE STRING "Trade floating point precision for speed" FORCE)
 endif ()
 
