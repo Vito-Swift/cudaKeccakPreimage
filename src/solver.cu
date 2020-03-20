@@ -4,9 +4,123 @@
 
 #include "solver.h"
 
-#include "mq.h"
 #include "threadpool.h"
 #include "params.h"
+#include "keccak.h"
+
+__device__ static uint32_t __forceinline__
+ctz(uint32_t c) {
+    return __clz(__brev(c));
+}
+
+__device__ static void __forceinline__
+diff_eq(uint8_t *func, uint32_t idx, uint8_t *result) {
+    memset(result, 0x0, (MQ_VAR_NUM + 1) * sizeof(uint8_t));
+
+    result[MQ_VAR_NUM] = func[MQ_XVAR_NUM - 1 - (MQ_VAR_NUM - idx)];
+
+    uint32_t cursor = MQ_XVAR_NUM - 1 - MQ_VAR_NUM - 1;
+    uint32_t i, j;
+    uint32_t bound = (0 == idx) ? 1 : idx;
+    for (i = MQ_VAR_NUM - 1; i >= bound; --i) {
+        if (i == idx) {
+            for (j = 1; j <= i; ++j) {
+                result[i - j] ^= func[cursor - j];
+            }
+        } else {
+            result[i] ^= func[cursor - (i - idx)];
+        }
+        cursor -= i + 1;
+    }
+}
+
+__device__ static void __forceinline__
+find_partial_derivs(uint8_t *mqsystem, uint8_t derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 1]) {
+    uint32_t eq_idx, var_idx;
+    for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+        for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+            diff_eq(mqsystem + eq_idx * MQ_XVAR_NUM, var_idx, derivs[eq_idx][var_idx]);
+        }
+    }
+}
+
+__device__ static void __forceinline__
+reduce_sys(uint8_t *mqsystem) {
+    uint32_t eq_idx, var_idx, i, sqr_term_idx;
+    for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+        for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+            for (i = 0, sqr_term_idx = 0; i < var_idx; i++) {
+                sqr_term_idx += i + 2;
+            }
+            mqsystem[eq_idx * MQ_XVAR_NUM + (MQ_XVAR_NUM - 2 - (MQ_VAR_NUM - 1 - var_idx))] ^=
+                mqsystem[eq_idx * MQ_XVAR_NUM + sqr_term_idx];
+            mqsystem[eq_idx * MQ_XVAR_NUM + sqr_term_idx] = 0;
+        }
+    }
+}
+
+__device__ void __forceinline__
+fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
+    uint64_t pdiff_eval[MQ_VAR_NUM];
+    uint64_t func_eval = 0x0UL;
+    uint64_t pre_fp_idx;
+    uint32_t count = 0;
+    uint32_t fp_idx;
+    const uint32_t bound = (0x1U << MQ_VAR_NUM) - 1;
+    uint64_t pdiff2[MQ_VAR_NUM][MQ_VAR_NUM];
+
+    reduce_sys(mqsystem);
+    uint8_t derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 1];
+    find_partial_derivs(mqsystem, derivs);
+
+    uint32_t eq_idx, var_idx, i, term;
+    for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+        memset(pdiff2[var_idx], 0x0, sizeof(uint64_t) * MQ_VAR_NUM);
+        for (i = 0; i < MQ_VAR_NUM; i++) {
+            for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+                term = derivs[eq_idx][var_idx][i];
+                pdiff2[i][var_idx] |= term << eq_idx;
+            }
+        }
+    }
+
+    memset(pdiff_eval, 0x0, sizeof(uint64_t) * MQ_VAR_NUM);
+    for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+        for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+            if (var_idx == 0) {
+                term = derivs[eq_idx][0][MQ_VAR_NUM];
+            } else {
+                term = derivs[eq_idx][var_idx][MQ_VAR_NUM] ^ derivs[eq_idx][var_idx][var_idx - 1];
+            }
+            pdiff_eval[var_idx] |= term << eq_idx;
+        }
+    }
+
+    // brute forcing
+    for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
+        term = mqsystem[eq_idx * MQ_XVAR_NUM + MQ_XVAR_NUM - 1];
+        func_eval |= term << eq_idx;
+    }
+    while (func_eval && count < bound) {
+        count++;
+        fp_idx = ctz(count);
+
+        if (count & (count - 1)) {
+            pre_fp_idx = ctz(count ^ (0x1U << fp_idx));
+            pdiff_eval[fp_idx] ^= pdiff2[fp_idx][pre_fp_idx];
+        }
+
+        func_eval ^= pdiff_eval[fp_idx];
+    }
+
+    if (!func_eval) {
+        for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
+            solution[var_idx] = (uint8_t) (((count ^ count >> 1) >> var_idx) & 0x1U);
+        }
+    } else {
+        memset(solution, 0x0, MQ_VAR_NUM * sizeof(uint8_t));
+    }
+}
 
 __host__ void
 loadSystemsFromFile(KeccakSolver *keccakSolver) {
@@ -211,10 +325,12 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
 }
 
 __global__ void
-kernelLoop(uint32_t *device_output_buffer,
+kernelLoop(uint8_t *device_output_buffer,
            uint8_t *device_mq_buffer) {
     uint64_t thread_id = (threadIdx.x + blockIdx.x * blockDim.x);
-
+    uint8_t *kern_mq_buffer = device_mq_buffer + thread_id * (MQ_XVAR_NUM * MQ_EQ_NUM);
+    uint8_t *kern_output_buffer = device_output_buffer + thread_id * MQ_VAR_NUM;
+    fast_exhaustive(kern_mq_buffer, kern_output_buffer);
 }
 
 __host__ void
@@ -260,7 +376,45 @@ threadUpdateMQSystem(void *arg) {
 __host__ void
 threadCheckResult(void *arg) {
     tcheckarg_t *args = (tcheckarg_t *) arg;
-    *args->preimage_found = true;
+    uint8_t *result_buffer = args->result_buffer;
+    uint32_t *lin2mq = args->lin2mq;
+    uint32_t *mq2lin = args->mq2lin;
+    uint8_t *lindep = args->lindep;
+
+    uint32_t i, j, idx_x, idx_y, idx_z;
+    bool result_found = false;
+    for (i = 0; i < MQ_VAR_NUM; i++) {
+        if (result_buffer[i]) {
+            result_found = true;
+            break;
+        }
+    }
+
+    if (result_found) {
+        uint32_t A[5][5];
+        for (i = 0; i < 5; i++)
+            memset(A[i], 0x0, 5 * sizeof(uint32_t));
+        for (i = 0; i < 800; i++) {
+            idx_z = (uint32_t) (i % 32);
+            idx_y = (uint32_t) ((i / 32) % 5);
+            idx_x = (uint32_t) ((i / 32) / 5);
+            uint32_t val = 0;
+
+            if (lin2mq[i] == DEP_PLACEMENT) {
+                for (j = 0; j < MQ_VAR_NUM; j++) {
+                    val ^= (result_buffer[j] & lindep[i][j]);
+                }
+                val ^= (lindep[i][MQ_VAR_NUM]);
+                A[idx_x][idx_y] |= (val << idx_z);
+            } else {
+                A[idx_x][idx_y] |= (result_buffer[lin2mq[i]] << idx_z);
+            }
+        }
+
+        if (cpu_VerifyKeccakResult(A)) {
+            *args->preimage_found = true;
+        }
+    }
 }
 
 __host__ void

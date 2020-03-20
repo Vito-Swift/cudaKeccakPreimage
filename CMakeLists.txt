@@ -124,8 +124,7 @@ set(CXX_SRCS
 set(CUDA_SRCS
         src/keccak.cu
         src/solver.cu
-        src/cuda_utils.cu
-        src/mq.cu)
+        src/cuda_utils.cu)
 
 
 # ========================================================================== #
@@ -146,9 +145,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
         LINKER_LANGUAGE CXX
         CUDA_SEPARABLE_COMPILATION ON)
 
-add_executable(testMQIO debug/testMQIO.cpp)
-add_executable(testAp debug/testAp.cpp)
-add_executable(testMQ debug/testMQ.cu src/keccak.cpp)
-target_include_directories(testMQ
-        PRIVATE ${PROJECT_SOURCE_DIR}/include
-        PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+#add_executable(testMQIO debug/testMQIO.cpp)
+#add_executable(testAp debug/testAp.cpp)
+#add_executable(testMQ debug/testMQ.cu src/keccak.cpp)
+#target_include_directories(testMQ
+#        PRIVATE ${PROJECT_SOURCE_DIR}/include
+#        PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

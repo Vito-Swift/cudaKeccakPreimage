@@ -6,7 +6,6 @@
 
 #include "params.h"
 #include "utils.h"
-#include "mq.h"
 
 #define eqvar(i, j, size) \
         ((i) * (size) + (j))

@@ -13,8 +13,9 @@
 #define RC3 0x51010000
 #define RC4 0x00010001
 
-__device__ static __forceinline__
-bool gpu_VerifyKeccakResult(uint32_t A[25]) {
+__device__ __forceinline__
+bool
+gpu_VerifyKeccakResult(uint32_t A[25]) {
     uint32_t tmpA[25];
     uint32_t C[5];
     uint32_t D[5];
