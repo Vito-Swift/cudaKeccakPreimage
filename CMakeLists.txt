@@ -90,9 +90,9 @@ if (COMPILER_CXX_NO_FP)
             CACHE STRING "Omit frame pointers" FORCE)
 endif ()
 
-check_cxx_compiler_flag("-O2" COMPILER_CXX_OPTIMIZATION)
+check_cxx_compiler_flag("-O3" COMPILER_CXX_OPTIMIZATION)
 if (COMPILER_CXX_OPTIMIZATION)
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2"
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3"
             CACHE STRING "Trade floating point precision for speed" FORCE)
 endif ()
 
@@ -122,7 +122,7 @@ set(CXX_SRCS
         src/keccak.cpp)
 
 set(CUDA_SRCS
-#        src/keccak.cu
+        src/keccak.cu
         src/solver.cu
         src/cuda_utils.cu)
 

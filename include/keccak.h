@@ -10,8 +10,8 @@
 
 #include "cuda_utils.h"
 
-//__device__ bool
-//gpu_VerifyKeccakResult(uint32_t A[25]);
+__device__ bool
+gpu_VerifyKeccakResult(uint32_t A[25]);
 
 /* function: ROR32
  * usage: perform right-rotate permutation

@@ -2,7 +2,7 @@
 // Created by vitowu on 3/13/20.
 //
 
-//#include "../include/keccak.h"
+#include "../include/keccak.h"
 
 // parameters relates to Keccak analysis
 #define ALPHA 0x44E72
