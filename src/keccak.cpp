@@ -12,7 +12,7 @@
 #define RC3 0x51010000
 #define RC4 0x00010001
 
-bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
+bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
 #define _ROR32(x, a) ((((x)>>(a))|((x)<<(32-(a)))))
 #define u32 uint32_t
     u32 A_1_0[5][5];
@@ -255,6 +255,7 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5]) {
     bit_diff += __builtin_popcount(result[1] ^ 0xE495E1E2);
     bit_diff += __builtin_popcount(result[2] ^ 0xFF220000);
 
+    *minDiff = bit_diff;
     return bit_diff <= DIFF_TOLERANCE;
 #undef u32
 #undef _ROR32

@@ -379,6 +379,7 @@ threadCheckResult(void *arg) {
     uint8_t *result_buffer = args->result_buffer;
     uint32_t *lin2mq = args->lin2mq;
     uint8_t *lindep = args->lindep;
+    uint32_t* minDiff = args->minDiff;
 
     uint32_t i, j, idx_x, idx_y, idx_z;
     bool result_found = false;
@@ -410,7 +411,7 @@ threadCheckResult(void *arg) {
             }
         }
 
-        if (cpu_VerifyKeccakResult(A)) {
+        if (cpu_VerifyKeccakResult(A, minDiff)) {
             PRINTF_STAMP("\t\tone thread found valid preimage: ");
             for (i = 0; i < 5; i++) {
                 for (j = 0; j < 5; j++) {
@@ -452,7 +453,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
     /* exhaustively search between gbstart and gbend */
     for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
-        PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx\n", gb);
+        PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gbend);
         PRINTF_STAMP("\t\tupdating mq system\n");
 
         /* update MQ System */
@@ -479,16 +480,20 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
         CUDA_CHECK(cudaDeviceSynchronize());
 
         PRINTF_STAMP("\t\tGPU kernel finished\n");
-        PRINTF_STAMP("\t\tverifying result...\n");
+
         /* check output result */
+        PRINTF_STAMP("\t\tverifying result...\n");
         CUDA_CHECK(cudaMemcpy(result_buffer, keccakSolver->device_output_buffer, rbuffer_size, cudaMemcpyDeviceToHost));
         tcheckarg_t check_args[CHUNK_SIZE];
+        uint32_t minDiff[CHUNK_SIZE];
+        memset(minDiff, 80, CHUNK_SIZE * sizeof(uint32_t));
         for (uint64_t thread_id = 0; thread_id < CHUNK_SIZE; thread_id++) {
             check_args[thread_id].preimage_found = &preimage_found;
             check_args[thread_id].result_buffer = result_buffer + thread_id * MQ_VAR_NUM;
             check_args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
             check_args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
             check_args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
+            check_args[thread_id].minDiff = &minDiff[thread_id];
             threadpool_add(keccakSolver->threadpool, threadCheckResult, (void *) &check_args[thread_id], 0);
         }
         threadpool_join(keccakSolver->threadpool, 0);
@@ -500,7 +505,12 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
             break;
         } else {
             PRINTF_STAMP("[+] No valid pre-image found\n");
-            PRINTF_STAMP("[+] Start a new chunk.\n");
+            uint32_t m = 80;
+            for (uint32_t i = 0; i < CHUNK_SIZE; i++) {
+                if (minDiff[i] < m)
+                    m = minDiff[i];
+            }
+            PRINTF_STAMP("\t\tminimal differ last round: %d\n", m);
         }
     }
     free(mqbuffer);

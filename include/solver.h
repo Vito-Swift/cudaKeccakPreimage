@@ -33,6 +33,7 @@ typedef struct tcheckarg_t {
   uint8_t *lindep;
   uint32_t *mq2lin;
   uint32_t *lin2mq;
+  uint32_t* minDiff;
   bool *preimage_found;
 } tcheckarg_t;
 
