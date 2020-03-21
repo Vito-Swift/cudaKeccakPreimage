@@ -16,3 +16,8 @@ BUILD
 
 USAGE
     $ ./keccaksolver --t [cpu_thread_num] --gb_start [guessing_bits_start] --gb_end [guessing_bits_end] --dev_id [gpu_device_id]
+
+EXAMPLE
+    start Keccak solver with 20 cpu threads, starts guessing bits at 0x12345 and ends at 0xabcde
+    using gpu device 0 to solve mq sub systems
+    $ ./keccaksolver --t 20 --gb_start 0x12345 --gb_end 0xabcde --dev_id 0
