@@ -379,7 +379,7 @@ threadCheckResult(void *arg) {
     uint8_t *result_buffer = args->result_buffer;
     uint32_t *lin2mq = args->lin2mq;
     uint8_t *lindep = args->lindep;
-    uint32_t* minDiff = args->minDiff;
+    uint32_t *minDiff = args->minDiff;
 
     uint32_t i, j, idx_x, idx_y, idx_z;
     bool result_found = false;
@@ -453,7 +453,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
     /* exhaustively search between gbstart and gbend */
     for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
-        PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gbend);
+        PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gb + CHUNK_SIZE);
         PRINTF_STAMP("\t\tupdating mq system\n");
 
         /* update MQ System */
