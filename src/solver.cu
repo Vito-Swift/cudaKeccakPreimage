@@ -115,7 +115,7 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
 
     if (!func_eval) {
         for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
-            solution[var_idx] = (uint8_t) (((count ^ count >> 1) >> var_idx) & 0x1U);
+            solution[var_idx] = (uint8_t) (((count ^ (count >> 1)) >> var_idx) & 0x1U);
         }
     } else {
         memset(solution, 0x0, MQ_VAR_NUM * sizeof(uint8_t));
@@ -328,7 +328,7 @@ __global__ void
 kernelLoop(uint8_t *device_output_buffer,
            uint8_t *device_mq_buffer) {
     uint64_t thread_id = (threadIdx.x + blockIdx.x * blockDim.x);
-    uint8_t *kern_mq_buffer = device_mq_buffer + thread_id * (MQ_XVAR_NUM * MQ_EQ_NUM);
+    uint8_t *kern_mq_buffer = device_mq_buffer + thread_id * (MQ_SYSTEM_SIZE);
     uint8_t *kern_output_buffer = device_output_buffer + thread_id * MQ_VAR_NUM;
     fast_exhaustive(kern_mq_buffer, kern_output_buffer);
 }
@@ -383,7 +383,7 @@ threadCheckResult(void *arg) {
     uint32_t i, j, idx_x, idx_y, idx_z;
     bool result_found = false;
     for (i = 0; i < MQ_VAR_NUM; i++) {
-        if (result_buffer[i]) {
+        if (result_buffer[i] != 0x0) {
             result_found = true;
             break;
         }
