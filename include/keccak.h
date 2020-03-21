@@ -27,7 +27,12 @@ inline void printHash(uint32_t hash[3]) {
 }
 
 inline void printStatus(uint32_t A[5][5]) {
-
+    uint32_t i, j;
+    for (i = 0; i < 5; i++) {
+        for (j = 0; j < 5; j++) {
+            PRINTF_STAMP("A[%d][%d]: 0x%08x\n", i, j, A[i][j]);
+        }
+    }
 }
 
 bool cpu_VerifyKeccakResult(const uint32_t A[5][5]);
