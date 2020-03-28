@@ -394,7 +394,7 @@ verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
         bool res = sys[i * term_num + term_num - 1]; // constant term
 
         // linear terms
-        bool *ptr = sys + i * term_num + term_num - 1 - 1;
+        uint8_t *ptr = sys + i * term_num + term_num - 1 - 1;
         for (uint64_t j = 0; j < var_num; ++j) {
             res ^= solution[var_num - 1 - j] & *ptr;
             --ptr;
