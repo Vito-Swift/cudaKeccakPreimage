@@ -387,7 +387,7 @@ threadUpdateMQSystem(void *arg) {
 }
 
 static inline bool
-verify_sol(bool *solution, bool *sys, const uint64_t eq_num,
+verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
            const uint64_t var_num, const uint64_t term_num,
            const uint64_t start) {
     for (uint64_t i = start; i < eq_num; ++i) { // for each equation
@@ -402,7 +402,7 @@ verify_sol(bool *solution, bool *sys, const uint64_t eq_num,
 
         // quadratic terms
         for (uint64_t j = 0; j < var_num; ++j) {
-            if (false == solution[var_num - 1 - j]) {
+            if (solution[var_num - 1 - j] == 0) {
                 // the var is zero
                 ptr -= var_num - 1 - j;
                 continue;
