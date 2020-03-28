@@ -429,7 +429,7 @@ threadCheckResult(void *arg) {
     uint32_t *lin2mq = args->lin2mq;
     uint8_t *lindep = args->lindep;
     uint32_t *minDiff = args->minDiff;
-    uint8_t* mq_buffer = args->mqbuffer;
+    uint8_t *mq_buffer = args->mqbuffer;
     if (verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
         EXIT_WITH_MSG("mq system solve error\n");
 
@@ -454,12 +454,14 @@ threadCheckResult(void *arg) {
 
             if (lin2mq[i] == DEP_PLACEMENT) {
                 for (j = 0; j < MQ_VAR_NUM; j++) {
-                    val ^= (result_buffer[j] & lindep[i * (MQ_VAR_NUM + 1) + j]);
+                    if (result_buffer[j])
+                        val ^= (lindep[i * (MQ_VAR_NUM + 1) + j]);
                 }
                 val ^= (lindep[i * (MQ_VAR_NUM + 1) + MQ_VAR_NUM]);
                 A[idx_x][idx_y] |= (val << idx_z);
             } else {
-                A[idx_x][idx_y] |= (result_buffer[lin2mq[i]] << idx_z);
+                if (result_buffer[lin2mq[i]])
+                    A[idx_x][idx_y] |= (1 << idx_z);
             }
         }
 
