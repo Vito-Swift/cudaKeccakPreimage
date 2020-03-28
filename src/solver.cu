@@ -430,7 +430,7 @@ threadCheckResult(void *arg) {
     uint8_t *lindep = args->lindep;
     uint32_t *minDiff = args->minDiff;
     uint8_t *mq_buffer = args->mqbuffer;
-    if (verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
+    if (!verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
         EXIT_WITH_MSG("mq system solve error\n");
 
     uint32_t i, j, idx_x, idx_y, idx_z;
@@ -512,6 +512,12 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
         /* update MQ System */
         memset(mqbuffer, 0, CHUNK_SIZE * MQ_SYSTEM_SIZE);
+        memset(result_buffer, 0, rbuffer_size);
+        memset(mqbuffer, 0, mbuffer_size);
+        memset(lin_dep_buffer, 0, lindep_buffer_size);
+        memset(mq2lin_buffer, 0, mq2lin_buffer_size);
+        memset(lin2mq_buffer, 0, lin2mq_buffer_size);
+
         tmqarg_t args[CHUNK_SIZE];
         uint64_t this_gb;
         for (this_gb = gb; this_gb < gb + CHUNK_SIZE; this_gb++) {
