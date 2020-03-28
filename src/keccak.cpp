@@ -87,6 +87,10 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
     A_2_0[3][4] = 0;
     A_2_0[4][4] = 0xFFFFFFFF;
 
+    if ((A_2_0[0][0] ^ A_2_0[0][1] ^ A_2_0[0][2] ^ A_2_0[0][3] ^ A_2_0[0][4]) != ALPHA)
+        EXIT_WITH_MSG("round 2 constraint error\n");
+    if ((A_2_0[2][0] ^ A_2_0[2][1] ^ A_2_0[2][2] ^ A_2_0[2][3] ^ A_2_0[2][4]) != BETA)
+        EXIT_WITH_MSG("round 2 constraint error\n");
     u32 A_2_1[5][5];
     for (int j = 0; j < 5; j++) {
         A_2_1[0][j] = A_2_0[0][j];
