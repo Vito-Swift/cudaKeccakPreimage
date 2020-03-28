@@ -316,6 +316,19 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
         }
     }
 
+    uint32_t A[5][5];
+    for (i = 0; i < 5; i++)
+        memset(A[i], 0x0, 5 * sizeof(uint32_t));
+
+    for (i = 0; i < 800; i++) {
+        uint32_t idx_z = (uint32_t) (i % 32);
+        uint32_t idx_y = (uint32_t) ((i / 32) % 5);
+        uint32_t idx_x = (uint32_t) ((i / 32) / 5);
+
+        A[idx_x][idx_y] |= (eval[i] << idx_z);
+    }
+    cpu_VerifyRound2(A);
+
     PRINTF_STAMP("[+] All reductions have finished, inner algebraic system are set to round 3\n");
 
     for (i = 0; i < MQ_EQ_NUM; i++)

@@ -270,3 +270,102 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
 #undef u32
 #undef _ROR32
 }
+
+void cpu_VerifyRound2(const uint32_t A[5][5]) {
+#define _ROR32(x, a) ((((x)>>(a))|((x)<<(32-(a)))))
+#define u32 uint32_t
+    u32 A_1_0[5][5];
+    for (uint32_t i = 0; i < 5; i++)
+        memcpy(A_1_0[i], A[i], sizeof(uint32_t) * 5);
+
+    u32 A_1_1[5][5];
+    for (int j = 0; j < 5; j++) {
+        A_1_1[0][j] = A_1_0[0][j] ^ A_1_0[4][0] ^ A_1_0[4][1] ^ A_1_0[4][2] ^ A_1_0[4][3] ^ A_1_0[4][4]
+            ^ _ROR32((A_1_0[1][0] ^ A_1_0[1][1] ^ A_1_0[1][2] ^ A_1_0[1][3] ^ A_1_0[1][4]), 1);
+        A_1_1[1][j] = A_1_0[1][j] ^ A_1_0[0][0] ^ A_1_0[0][1] ^ A_1_0[0][2] ^ A_1_0[0][3] ^ A_1_0[0][4]
+            ^ _ROR32((A_1_0[2][0] ^ A_1_0[2][1] ^ A_1_0[2][2] ^ A_1_0[2][3] ^ A_1_0[2][4]), 1);
+        A_1_1[2][j] = A_1_0[2][j] ^ A_1_0[1][0] ^ A_1_0[1][1] ^ A_1_0[1][2] ^ A_1_0[1][3] ^ A_1_0[1][4]
+            ^ _ROR32((A_1_0[3][0] ^ A_1_0[3][1] ^ A_1_0[3][2] ^ A_1_0[3][3] ^ A_1_0[3][4]), 1);
+        A_1_1[3][j] = A_1_0[3][j] ^ A_1_0[2][0] ^ A_1_0[2][1] ^ A_1_0[2][2] ^ A_1_0[2][3] ^ A_1_0[2][4]
+            ^ _ROR32((A_1_0[4][0] ^ A_1_0[4][1] ^ A_1_0[4][2] ^ A_1_0[4][3] ^ A_1_0[4][4]), 1);
+        A_1_1[4][j] = A_1_0[4][j] ^ A_1_0[3][0] ^ A_1_0[3][1] ^ A_1_0[3][2] ^ A_1_0[3][3] ^ A_1_0[3][4]
+            ^ _ROR32((A_1_0[0][0] ^ A_1_0[0][1] ^ A_1_0[0][2] ^ A_1_0[0][3] ^ A_1_0[0][4]), 1);
+    }
+
+    u32 A_1_2[5][5];
+    A_1_2[0][0] = A_1_1[0][0];
+    A_1_2[0][1] = _ROR32(A_1_1[3][0], 28);
+    A_1_2[0][2] = _ROR32(A_1_1[1][0], 1);
+    A_1_2[0][3] = _ROR32(A_1_1[4][0], 27);
+    A_1_2[0][4] = _ROR32(A_1_1[2][0], 30);
+    A_1_2[1][0] = _ROR32(A_1_1[1][1], 12);
+    A_1_2[1][1] = _ROR32(A_1_1[4][1], 20);
+    A_1_2[1][2] = _ROR32(A_1_1[2][1], 6);
+    A_1_2[1][3] = _ROR32(A_1_1[0][1], 4);
+    A_1_2[1][4] = _ROR32(A_1_1[3][1], 23);
+    A_1_2[2][0] = _ROR32(A_1_1[2][2], 11);
+    A_1_2[2][1] = _ROR32(A_1_1[0][2], 3);
+    A_1_2[2][2] = _ROR32(A_1_1[3][2], 25);
+    A_1_2[2][3] = _ROR32(A_1_1[1][2], 10);
+    A_1_2[2][4] = _ROR32(A_1_1[4][2], 7);
+    A_1_2[3][0] = _ROR32(A_1_1[3][3], 21);
+    A_1_2[3][1] = _ROR32(A_1_1[1][3], 13);
+    A_1_2[3][2] = _ROR32(A_1_1[4][3], 8);
+    A_1_2[3][3] = _ROR32(A_1_1[2][3], 15);
+    A_1_2[3][4] = _ROR32(A_1_1[0][3], 9);
+    A_1_2[4][0] = _ROR32(A_1_1[4][4], 14);
+    A_1_2[4][1] = _ROR32(A_1_1[2][4], 29);
+    A_1_2[4][2] = _ROR32(A_1_1[0][4], 18);
+    A_1_2[4][3] = _ROR32(A_1_1[3][4], 24);
+    A_1_2[4][4] = _ROR32(A_1_1[1][4], 2);
+
+    if (A_1_2[1][0] != 0xFFFFFFFF) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[1][1] != 0xFFFFFFFF) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[1][2] != 0xFFFFFFFF) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[1][3] != 0xFFFFFFFF) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[1][4] != 0xFFFFFFFF) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[3][0] != 0) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[3][1] != 0) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[3][2] != 0) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[3][3] != 0) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[3][4] != 0) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[4][0] != A_1_2[0][0]) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[4][1] != A_1_2[0][1]) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[4][2] != A_1_2[0][2]) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[4][3] != A_1_2[0][3]) EXIT_WITH_MSG("round 1 constraint error\n");
+    if (A_1_2[4][4] != A_1_2[0][4]) EXIT_WITH_MSG("round 1 constraint error\n");
+
+    u32 A_2_0[5][5];
+    A_2_0[0][0] = A_1_2[0][0] ^ RC1;
+    A_2_0[1][0] = 0xFFFFFFFF;
+    A_2_0[2][0] = A_1_2[0][0] ^ A_1_2[2][0];
+    A_2_0[3][0] = 0;
+    A_2_0[4][0] = 0xFFFFFFFF;
+    A_2_0[0][1] = A_1_2[0][1];
+    A_2_0[1][1] = 0xFFFFFFFF;
+    A_2_0[2][1] = A_1_2[0][1] ^ A_1_2[2][1];
+    A_2_0[3][1] = 0;
+    A_2_0[4][1] = 0xFFFFFFFF;
+    A_2_0[0][2] = A_1_2[0][2];
+    A_2_0[1][2] = 0xFFFFFFFF;
+    A_2_0[2][2] = A_1_2[0][2] ^ A_1_2[2][2];
+    A_2_0[3][2] = 0;
+    A_2_0[4][2] = 0xFFFFFFFF;
+    A_2_0[0][3] = A_1_2[0][3];
+    A_2_0[1][3] = 0xFFFFFFFF;
+    A_2_0[2][3] = A_1_2[0][3] ^ A_1_2[2][3];
+    A_2_0[3][3] = 0;
+    A_2_0[4][3] = 0xFFFFFFFF;
+    A_2_0[0][4] = A_1_2[0][4];
+    A_2_0[1][4] = 0xFFFFFFFF;
+    A_2_0[2][4] = A_1_2[0][4] ^ A_1_2[2][4];
+    A_2_0[3][4] = 0;
+    A_2_0[4][4] = 0xFFFFFFFF;
+
+    if ((A_2_0[0][0] ^ A_2_0[0][1] ^ A_2_0[0][2] ^ A_2_0[0][3] ^ A_2_0[0][4]) != ALPHA)
+        EXIT_WITH_MSG("round 2 constraint error\n");
+    if ((A_2_0[2][0] ^ A_2_0[2][1] ^ A_2_0[2][2] ^ A_2_0[2][3] ^ A_2_0[2][4]) != BETA)
+        EXIT_WITH_MSG("round 2 constraint error\n");
+#undef u32
+#undef _ROR32
+}

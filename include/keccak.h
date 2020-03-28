@@ -37,4 +37,6 @@ inline void printStatus(uint32_t A[5][5]) {
 
 bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t* minDiff);
 
+void cpu_VerifyRound2(const uint32_t A[5][5]);
+
 #endif //KECCAKSOLVER_KECCAK_H
