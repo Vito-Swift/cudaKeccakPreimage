@@ -227,6 +227,19 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
     A_4_2[4][3] = _ROR32(A_4_1[3][4], 24);
     A_4_2[4][4] = _ROR32(A_4_1[1][4], 2);
 
+    if ((A_4_2[0][0] & 0x00000744) != 0x00000004)
+        EXIT_WITH_MSG("mq constraint error\n");
+    if ((A_4_2[1][0] & 0x74400000) != 0x24000000)
+        EXIT_WITH_MSG("mq constraint error\n");
+
+    if ((A_4_2[0][0] & 0x27A98003) != 0x26090002)
+        EXIT_WITH_MSG("mq constraint error\n");
+    if (((A_4_2[0][0] ^ A_4_2[2][0]) & 0xD85678B8) != 0x885068A0)
+        EXIT_WITH_MSG("mq constraint error\n");
+    if ((A_4_2[1][0] & 0x8B040000) != 0x03000000)
+        EXIT_WITH_MSG("mq constraint error\n");
+    if (((A_4_2[1][0] ^ A_4_2[3][0]) & 0x00BB0000) != 0x00A90000)
+        EXIT_WITH_MSG("mq constraint error\n");
 
     u32 A_5_0[5][5];
     for (int j = 0; j < 5; j++) {

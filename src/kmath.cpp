@@ -10,7 +10,7 @@
 #define eqvar(i, j, size) \
         ((i) * (size) + (j))
 
-// #define _VERIFICATION
+#define _VERIFICATION
 
 void
 initMathSystem(MathSystem *system) {
@@ -387,7 +387,7 @@ guessingBitsToMqSystem(const MathSystem *system,
     /* calculating linear dependency */
     uint8_t tmp_lindep[IMQ_VAR_NUM][AMQ_VAR_NUM + 1];
     for (i = 0; i < IMQ_VAR_NUM; i++)
-        memset(tmp_lindep, 0, (AMQ_VAR_NUM + 1) * sizeof(uint8_t));
+        memset(tmp_lindep[i], 0, (AMQ_VAR_NUM + 1) * sizeof(uint8_t));
 
     for (i = 0; i < LIN_ITER_EQNUM; i++) {
         for (j = 0; j < IMQ_VAR_NUM; j++) {
@@ -406,7 +406,7 @@ guessingBitsToMqSystem(const MathSystem *system,
     uint8_t append_lin_system[AMQ_LIN_EQNUM][AMQ_XVAR_NUM];
     uint32_t eq_idx, var_idx;
     for (eq_idx = 0; eq_idx < AMQ_LIN_EQNUM; eq_idx++) {
-        memset(append_lin_system[eq_idx], 0, AMQ_XVAR_NUM);
+        memset(append_lin_system[eq_idx], 0, AMQ_XVAR_NUM * sizeof(uint8_t));
         uint32_t multix_1;
         uint32_t multix_2;
         for (multix_1 = 0; multix_1 < IMQ_VAR_NUM; multix_1++) {
@@ -529,6 +529,9 @@ guessingBitsToMqSystem(const MathSystem *system,
     }
 
     uint8_t append_lindep[AMQ_VAR_NUM][MQ_VAR_NUM + 1];
+    for (i = 0; i < AMQ_VAR_NUM; i++)
+        memset(append_lindep[i], 0, (MQ_VAR_NUM + 1) * sizeof(uint8_t));
+
     for (i = 0; i < AMQ_LIN_EQNUM; i++) {
         for (j = 0; j < AMQ_VAR_NUM; j++) {
             if (append_lin_part[i][j] == 1) {
@@ -544,6 +547,9 @@ guessingBitsToMqSystem(const MathSystem *system,
     }
 
     uint8_t total_lindep[800][MQ_VAR_NUM + 1];
+    for (i = 0; i < 800; i++)
+        memset(total_lindep[i], 0, (MQ_VAR_NUM + 1) * sizeof(uint8_t));
+
     // mq to lin
     uint32_t total_fvar_idx[MQ_VAR_NUM] = {0};
     for (i = 0; i < MQ_VAR_NUM; i++) {
@@ -789,6 +795,9 @@ guessingBitsToMqSystem(const MathSystem *system,
 #endif
 
     /* copy mq system to memory */
+    for (i = 0; i < MQ_VAR_NUM; i++) {
+        total_rfvar_idx[total_fvar_idx[i]] = i;
+    }
     for (i = 0; i < 800; i++)
         memcpy(lin_dep + i * (MQ_VAR_NUM + 1), total_lindep[i], (MQ_VAR_NUM + 1) * sizeof(uint8_t));
     for (i = 0; i < MQ_EQ_NUM; i++)

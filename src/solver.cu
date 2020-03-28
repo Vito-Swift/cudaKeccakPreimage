@@ -344,7 +344,7 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     PRINTF_STAMP("[+] Initial math system\n");
     initMathSystem(&keccakSolver->mathSystem);
 
-    keccakSolver->threadpool = threadpool_create(keccakSolver->options.cpu_thread_num, CHUNK_SIZE, 0);
+    keccakSolver->threadpool = threadpool_create(keccakSolver->options.cpu_thread_num, 0x2000, 0);
 
     const size_t device_mbufer_size = CHUNK_SIZE * MQ_SYSTEM_SIZE * sizeof(uint8_t);
     const size_t device_obufer_size = CHUNK_SIZE * MQ_VAR_NUM * sizeof(uint8_t);
