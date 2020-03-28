@@ -64,9 +64,9 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     uint64_t pdiff_eval[MQ_VAR_NUM];
     uint64_t func_eval = 0x0UL;
     uint64_t pre_fp_idx;
-    uint32_t count = 0;
-    uint32_t fp_idx;
-    const uint32_t bound = (0x1U << MQ_VAR_NUM) - 1;
+    uint64_t count = 0;
+    uint64_t fp_idx;
+    const uint64_t bound = (0x1U << MQ_VAR_NUM) - 1;
     uint64_t pdiff2[MQ_VAR_NUM][MQ_VAR_NUM];
 
     reduce_sys(mqsystem);
@@ -103,10 +103,10 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     }
     while (func_eval && count < bound) {
         count++;
-        fp_idx = ctz(count);
+        fp_idx = __ffsll(count);
 
         if (count & (count - 1)) {
-            pre_fp_idx = ctz(count ^ (0x1U << fp_idx));
+            pre_fp_idx = __ffsll(count ^ (0x1U << fp_idx));
             pdiff_eval[fp_idx] ^= pdiff2[fp_idx][pre_fp_idx];
         }
 
