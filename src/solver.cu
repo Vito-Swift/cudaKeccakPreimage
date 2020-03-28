@@ -386,6 +386,42 @@ threadUpdateMQSystem(void *arg) {
     guessingBitsToMqSystem(mathSystem, guessingBits, mqbuffer, mq2lin, lin2mq, lindep);
 }
 
+static inline bool
+verify_sol(bool *solution, bool *sys, const uint64_t eq_num,
+           const uint64_t var_num, const uint64_t term_num,
+           const uint64_t start) {
+    for (uint64_t i = start; i < eq_num; ++i) { // for each equation
+        bool res = sys[i * term_num + term_num - 1]; // constant term
+
+        // linear terms
+        bool *ptr = sys + i * term_num + term_num - 1 - 1;
+        for (uint64_t j = 0; j < var_num; ++j) {
+            res ^= solution[var_num - 1 - j] & *ptr;
+            --ptr;
+        }
+
+        // quadratic terms
+        for (uint64_t j = 0; j < var_num; ++j) {
+            if (false == solution[var_num - 1 - j]) {
+                // the var is zero
+                ptr -= var_num - 1 - j;
+                continue;
+            }
+
+            for (uint64_t k = 1; k < var_num - j; ++k) {
+                res ^= *ptr & solution[var_num - 1 - j - k];
+                --ptr;
+            }
+        }
+
+        if (res) { // the equation is evaluated to 1
+            return false;
+        }
+    }
+
+    return true;
+}
+
 __host__ void
 threadCheckResult(void *arg) {
     tcheckarg_t *args = (tcheckarg_t *) arg;
@@ -393,6 +429,9 @@ threadCheckResult(void *arg) {
     uint32_t *lin2mq = args->lin2mq;
     uint8_t *lindep = args->lindep;
     uint32_t *minDiff = args->minDiff;
+    uint8_t* mq_buffer = args->mqbuffer;
+    if (verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
+        EXIT_WITH_MSG("mq system solve error\n");
 
     uint32_t i, j, idx_x, idx_y, idx_z;
     bool result_found = false;
@@ -506,6 +545,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
             check_args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
             check_args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
             check_args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
+            check_args[thread_id].mqbuffer = mqbuffer + thread_id * MQ_SYSTEM_SIZE;
             check_args[thread_id].minDiff = &minDiff[thread_id];
             threadpool_add(keccakSolver->threadpool, threadCheckResult, (void *) &check_args[thread_id], 0);
         }
