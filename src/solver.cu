@@ -63,9 +63,9 @@ __device__ void __forceinline__
 fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     uint64_t pdiff_eval[MQ_VAR_NUM];
     uint64_t func_eval = 0x0UL;
-    uint64_t pre_fp_idx;
+    uint64_t pre_fp_idx = 0;
     uint64_t count = 0;
-    uint64_t fp_idx;
+    uint64_t fp_idx = 0;
     const uint64_t bound = (0x1UL << MQ_VAR_NUM) - 1;
     uint64_t pdiff2[MQ_VAR_NUM][MQ_VAR_NUM];
 
@@ -430,8 +430,6 @@ threadCheckResult(void *arg) {
     uint8_t *lindep = args->lindep;
     uint32_t *minDiff = args->minDiff;
     uint8_t *mq_buffer = args->mqbuffer;
-    if (!verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
-        EXIT_WITH_MSG("mq system solve error\n");
 
     uint32_t i, j, idx_x, idx_y, idx_z;
     bool result_found = false;
@@ -443,6 +441,8 @@ threadCheckResult(void *arg) {
     }
 
     if (result_found) {
+        if (!verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
+            EXIT_WITH_MSG("mq system solve error\n");
         uint32_t A[5][5];
         for (i = 0; i < 5; i++)
             memset(A[i], 0x0, 5 * sizeof(uint32_t));
