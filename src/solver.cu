@@ -9,7 +9,7 @@
 #include "keccak.h"
 
 __device__ static uint32_t __forceinline__
-ctz(uint64_t c) {
+ctz(uint32_t c) {
     return __clz(__brev(c));
 }
 
@@ -391,7 +391,7 @@ verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
            const uint64_t var_num, const uint64_t term_num,
            const uint64_t start) {
     for (uint64_t i = start; i < eq_num; ++i) { // for each equation
-        bool res = sys[i * term_num + term_num - 1]; // constant term
+        uint8_t res = sys[i * term_num + term_num - 1]; // constant term
 
         // linear terms
         uint8_t *ptr = sys + i * term_num + term_num - 1 - 1;
@@ -441,8 +441,8 @@ threadCheckResult(void *arg) {
     }
 
     if (result_found) {
-        if (!verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
-            PRINTF_ERR_STAMP("mq system solve error\n");
+        if (verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
+            PRINTF_ERR_STAMP("mq system solve valid\n");
         uint32_t A[5][5];
         for (i = 0; i < 5; i++)
             memset(A[i], 0x0, 5 * sizeof(uint32_t));
@@ -507,6 +507,8 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
     /* exhaustively search between gbstart and gbend */
     for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
+        CUDA_CHECK(cudaMemset(keccakSolver->device_mq_buffer, 0, mbuffer_size));
+        CUDA_CHECK(cudaMemset(keccakSolver->device_output_buffer, 0, rbuffer_size));
         PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gb + CHUNK_SIZE);
         PRINTF_STAMP("\t\tupdating mq system\n");
 
