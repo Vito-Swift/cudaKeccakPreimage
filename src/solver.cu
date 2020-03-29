@@ -9,8 +9,8 @@
 #include "keccak.h"
 
 __device__ static uint32_t __forceinline__
-ctzll(uint64_t c) {
-    return __clzll(__brevll(c));
+ctz(uint64_t c) {
+    return __clz(__brev(c));
 }
 
 __device__ static void __forceinline__
@@ -64,9 +64,9 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     uint64_t pdiff_eval[MQ_VAR_NUM];
     uint64_t func_eval = 0x0UL;
     uint64_t pre_fp_idx = 0;
-    uint64_t count = 0;
+    uint32_t count = 0;
     uint64_t fp_idx = 0;
-    const uint64_t bound = (0x1UL << MQ_VAR_NUM) - 1;
+    const uint32_t bound = (0x1U << MQ_VAR_NUM) - 1;
     uint64_t pdiff2[MQ_VAR_NUM][MQ_VAR_NUM];
 
     reduce_sys(mqsystem);
@@ -103,10 +103,10 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     }
     while (func_eval && count < bound) {
         count++;
-        fp_idx = ctzll(count);
+        fp_idx = ctz(count);
 
         if (count & (count - 1)) {
-            pre_fp_idx = ctzll(count ^ (0x1U << fp_idx));
+            pre_fp_idx = ctz(count ^ (0x1U << fp_idx));
             pdiff_eval[fp_idx] ^= pdiff2[fp_idx][pre_fp_idx];
         }
 
