@@ -106,7 +106,7 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
         fp_idx = ctzll(count);
 
         if (count & (count - 1)) {
-            pre_fp_idx ctzll(count ^ (0x1U << fp_idx));
+            pre_fp_idx = ctzll(count ^ (0x1U << fp_idx));
             pdiff_eval[fp_idx] ^= pdiff2[fp_idx][pre_fp_idx];
         }
 
