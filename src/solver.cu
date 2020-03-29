@@ -442,7 +442,7 @@ threadCheckResult(void *arg) {
 
     if (result_found) {
         if (!verify_sol(result_buffer, mq_buffer, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
-            EXIT_WITH_MSG("mq system solve error\n");
+            PRINTF_ERR_STAMP("mq system solve error\n");
         uint32_t A[5][5];
         for (i = 0; i < 5; i++)
             memset(A[i], 0x0, 5 * sizeof(uint32_t));
