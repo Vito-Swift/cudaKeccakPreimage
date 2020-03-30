@@ -63,9 +63,9 @@ __device__ void __forceinline__
 fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     uint64_t pdiff_eval[MQ_VAR_NUM];
     uint64_t func_eval = 0x0UL;
-    uint64_t pre_fp_idx = 0;
+    uint32_t pre_fp_idx = 0;
     uint32_t count = 0;
-    uint64_t fp_idx = 0;
+    uint32_t fp_idx = 0;
     const uint32_t bound = (0x1U << MQ_VAR_NUM) - 1;
     uint64_t pdiff2[MQ_VAR_NUM][MQ_VAR_NUM];
 
@@ -409,6 +409,7 @@ verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
 
         res ^= sys[i * term_num + term_num - 1];
         if (res == 1) { // the equation is evaluated to 1
+            printf("%d\n", i);
             return false;
         }
     }
