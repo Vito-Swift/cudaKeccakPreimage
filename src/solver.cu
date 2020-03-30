@@ -72,7 +72,8 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     uint8_t derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_VAR_NUM + 1];
     find_partial_derivs(mqsystem, derivs);
 
-    uint32_t eq_idx, var_idx, i, term;
+    uint32_t eq_idx, var_idx, i;
+    uint64_t term;
     for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
         memset(pdiff2[var_idx], 0x0, sizeof(uint64_t) * MQ_VAR_NUM);
         for (i = 0; i < MQ_VAR_NUM; i++) {
@@ -409,7 +410,6 @@ verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
 
         res ^= sys[i * term_num + term_num - 1];
         if (res == 1) { // the equation is evaluated to 1
-            printf("%d\n", i);
             return false;
         }
     }
