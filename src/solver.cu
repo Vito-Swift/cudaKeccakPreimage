@@ -44,7 +44,7 @@ find_partial_derivs(uint8_t *mqsystem, uint8_t derivs[MQ_EQ_NUM][MQ_VAR_NUM][MQ_
     }
 }
 
-__device__ static void __forceinline__
+__host__ __device__ static void
 reduce_sys(uint8_t *mqsystem) {
     uint32_t eq_idx, var_idx, i, sqr_term_idx;
     for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
@@ -87,9 +87,10 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
     for (var_idx = 0; var_idx < MQ_VAR_NUM; var_idx++) {
         for (eq_idx = 0; eq_idx < MQ_EQ_NUM; eq_idx++) {
             if (var_idx == 0) {
-                term = derivs[eq_idx][0][MQ_VAR_NUM];
+                term = mqsystem[eq_idx * MQ_XVAR_NUM + deg2midx1(MQ_VAR_NUM, 0)];
             } else {
-                term = derivs[eq_idx][var_idx][MQ_VAR_NUM] ^ derivs[eq_idx][var_idx][var_idx - 1];
+                term = mqsystem[eq_idx * MQ_XVAR_NUM + deg2midx1(MQ_VAR_NUM, var_idx)]
+                    ^ derivs[eq_idx][var_idx][var_idx - 1];
             }
             pdiff_eval[var_idx] |= term << eq_idx;
         }
@@ -100,6 +101,7 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
         term = mqsystem[eq_idx * MQ_XVAR_NUM + MQ_XVAR_NUM - 1];
         func_eval |= term << eq_idx;
     }
+
     while (func_eval && count < bound) {
         count++;
         fp_idx = ctz(count);
@@ -383,37 +385,30 @@ threadUpdateMQSystem(void *arg) {
     uint8_t *lindep = args->lindep;
     MathSystem *mathSystem = args->mathSystem;
     guessingBitsToMqSystem(mathSystem, guessingBits, mqbuffer, mq2lin, lin2mq, lindep);
+    reduce_sys(mqbuffer);
 }
 
 static inline bool
 verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
            const uint64_t var_num, const uint64_t term_num,
            const uint64_t start) {
-    for (uint64_t i = start; i < eq_num; ++i) { // for each equation
-        uint8_t res = sys[i * term_num + term_num - 1]; // constant term
+    for (uint64_t i = 0; i < eq_num; i++) { // for each equation
+        uint64_t res = 0;
 
-        // linear terms
-        uint8_t *ptr = sys + i * term_num + term_num - 1 - 1;
-        for (uint64_t j = 0; j < var_num; ++j) {
-            res ^= solution[var_num - 1 - j] & *ptr;
-            --ptr;
-        }
-
-        // quadratic terms
-        for (uint64_t j = 0; j < var_num; ++j) {
-            if (solution[var_num - 1 - j] == 0) {
-                // the var is zero
-                ptr -= var_num - 1 - j;
-                continue;
-            }
-
-            for (uint64_t k = 1; k < var_num - j; ++k) {
-                res ^= *ptr & solution[var_num - 1 - j - k];
-                --ptr;
+        for (uint64_t mul_1 = 0; mul_1 < var_num; mul_1++) {
+            for (uint64_t mul_2 = mul_1; mul_2 < var_num; mul_2++) {
+                if (sys[i * term_num + deg2midx2(mul_1, mul_2)] == 1) {
+                    res ^= (solution[mul_1] & solution[mul_2]);
+                }
             }
         }
 
-        if (res) { // the equation is evaluated to 1
+        for (uint64_t var_idx = 0; var_idx < var_num; var_idx++) {
+            res ^= (solution[var_idx] & sys[i * term_num + deg2midx1(var_num, var_idx)]);
+        }
+
+        res ^= sys[i * term_num + term_num - 1];
+        if (res == 1) { // the equation is evaluated to 1
             return false;
         }
     }
