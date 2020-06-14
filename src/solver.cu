@@ -519,15 +519,11 @@ threadCheckResult(void *arg) {
             }
         }
 
-        printStatus(A);
+//        printStatus(A);
 
         if (cpu_VerifyKeccakResult(A, minDiff)) {
             PRINTF_STAMP("\t\tone thread found valid preimage: ");
-            for (i = 0; i < 5; i++) {
-                for (j = 0; j < 5; j++) {
-                    PRINTF_STAMP("A[%d][%d]: 0x%08x\n", i, j, A[i][j]);
-                }
-            }
+            printStatus(A);
             *args->preimage_found = true;
         }
     }
