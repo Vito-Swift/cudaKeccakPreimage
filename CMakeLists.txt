@@ -110,6 +110,16 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/mq_analysis.dat ${CMAKE_CURRENT_
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/lin_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/data/variate_analysis.dat ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
 
+execute_process(
+        COMMAND bash -c "mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/testBench/ \
+        && cp ${CMAKE_CURRENT_SOURCE_DIR}/test/testBench/testMessage.txt ${CMAKE_CURRENT_BINARY_DIR}/testBench/ \
+        && cp ${CMAKE_CURRENT_SOURCE_DIR}/test/testBench/test_append_analysis.dat ${CMAKE_CURRENT_BINARY_DIR}/testBench/ \
+        && cp ${CMAKE_CURRENT_SOURCE_DIR}/test/testBench/test_mq_analysis.dat ${CMAKE_CURRENT_BINARY_DIR}/testBench/ \
+        && cp ${CMAKE_CURRENT_SOURCE_DIR}/test/testBench/test_variate_analysis.dat ${CMAKE_CURRENT_BINARY_DIR}/testBench/ \
+        && cp ${CMAKE_CURRENT_SOURCE_DIR}/test/testBench/test_lin_analysis.dat ${CMAKE_CURRENT_BINARY_DIR}/testBench/"
+        OUTPUT_VARIABLE outVar
+)
+
 # ========================================================================== #
 # source code
 # ========================================================================== #
@@ -144,6 +154,20 @@ target_include_directories(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES
         LINKER_LANGUAGE CXX
         CUDA_SEPARABLE_COMPILATION ON)
+
+add_executable(testRandMessage ${CXX_SRCS} ${CUDA_SRCS} test/testRandMessage.cpp)
+target_include_directories(testRandMessage
+        PRIVATE ${PROJECT_SOURCE_DIR}/include
+        PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+add_executable(testPreimageAttack ${CXX_SRCS} ${CUDA_SRCS} test/testPreimageAttack.cpp)
+target_include_directories(testPreimageAttack
+        PRIVATE ${PROJECT_SOURCE_DIR}/include
+        PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_compile_definitions(testPreimageAttack
+        PRIVATE TEST_PRE=1)
+
+add_executable(testConstraintCorrectness test/testConstraintCorrectness.cpp)
 
 #add_executable(testMQIO debug/testMQIO.cpp)
 #add_executable(testAp debug/testAp.cpp)

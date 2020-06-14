@@ -10,7 +10,7 @@
 #define eqvar(i, j, size) \
         ((i) * (size) + (j))
 
-// #define _VERIFICATION
+#define _VERIFICATION
 
 void
 initMathSystem(MathSystem *system) {
@@ -31,7 +31,7 @@ initMathSystem(MathSystem *system) {
     // mq system in order 2
     for (i = 0; i < MQ_EQ_NUM; i++) {
         system->round3_mq_system[i] = (uint8_t *) malloc(IMQ_XVAR_NUM * sizeof(uint8_t));
-        memset(system->round3_append_system[i], 0, IMQ_XVAR_NUM * sizeof(uint8_t));
+        memset(system->round3_mq_system[i], 0, IMQ_XVAR_NUM * sizeof(uint8_t));
     }
 
     // iterative system in order 1
@@ -96,7 +96,14 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
             system->round3_lin2mq[i] = DEP_PLACEMENT;
         }
     }
+    PRINTF_STAMP("Round3 variable num: %d\n", fvar_offset);
 
+//    for (uint32_t i = 0; i < LIN_CONST_EQNUM; i++) {
+//        for (uint32_t j = 0; j < 801; j++) {
+//            printf("%d ", lin_system[i][j]);
+//        }
+//        printf("\n");
+//    }
     // note: must do index transferring first before calc linear dependency
     for (uint32_t i = 0; i < LIN_CONST_EQNUM; i++) {
         for (uint32_t j = 0; j < 800; j++) {

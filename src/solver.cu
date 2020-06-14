@@ -53,7 +53,7 @@ reduce_sys(uint8_t *mqsystem) {
                 sqr_term_idx += i + 2;
             }
             mqsystem[eq_idx * MQ_XVAR_NUM + (MQ_XVAR_NUM - 2 - (MQ_VAR_NUM - 1 - var_idx))] ^=
-                mqsystem[eq_idx * MQ_XVAR_NUM + sqr_term_idx];
+                    mqsystem[eq_idx * MQ_XVAR_NUM + sqr_term_idx];
             mqsystem[eq_idx * MQ_XVAR_NUM + sqr_term_idx] = 0;
         }
     }
@@ -91,7 +91,7 @@ fast_exhaustive(uint8_t *mqsystem, uint8_t *solution) {
                 term = mqsystem[eq_idx * MQ_XVAR_NUM + deg2midx1(MQ_VAR_NUM, 0)];
             } else {
                 term = mqsystem[eq_idx * MQ_XVAR_NUM + deg2midx1(MQ_VAR_NUM, var_idx)]
-                    ^ derivs[eq_idx][var_idx][var_idx - 1];
+                       ^ derivs[eq_idx][var_idx][var_idx - 1];
             }
             pdiff_eval[var_idx] |= term << eq_idx;
         }
@@ -135,7 +135,7 @@ loadSystemsFromFile(KeccakSolver *keccakSolver) {
     for (i = 0; i < MQ_EQ_NUM; i++)
         mq_system[i] = (uint8_t *) malloc(BMQ_XVAR_NUM * sizeof(uint8_t));
     uint8_t *append_system[AMQ_LIN_EQNUM];
-    for (i = 0; i < MQ_EQ_NUM; i++)
+    for (i = 0; i < AMQ_LIN_EQNUM; i++)
         append_system[i] = (uint8_t *) malloc(BMQ_XVAR_NUM * sizeof(uint8_t));
 
     PRINTF_STAMP("[+] Reading preprocessed systems from file\n");
@@ -348,6 +348,19 @@ kernelLoop(uint8_t *device_output_buffer,
     fast_exhaustive(kern_mq_buffer, kern_output_buffer);
 }
 
+void
+readMessageFromFile(FILE *message_file,
+                    uint32_t **message) {
+    char line[256];
+    PRINTF_STAMP("Read message from file: \n");
+    while (fgets(line, sizeof(line), message_file)) {
+        uint32_t i, j, val;
+        sscanf(line, "A[%d][%d]: 0x%08x", &i, &j, &val);
+        message[i][j] = val;
+        PRINTF_STAMP("\tA[%d][%d]: 0x%08x\n", i, j, message[i][j]);
+    }
+}
+
 __host__ void
 keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     PRINTF_STAMP("[+] Initialize Keccak Solver\n");
@@ -374,6 +387,21 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     CUDA_CHECK(cudaMalloc(&keccakSolver->device_output_buffer, device_obufer_size));
 
     loadSystemsFromFile(keccakSolver);
+
+#ifdef TEST_PRE
+    FILE *message_file = fopen(keccakSolver->options.test_message_file, "r");
+    if (message_file == nullptr) {
+        PRINTF_ERR_STAMP("cannot open testMessage file, exit.");
+        exit(1);
+    }
+    keccakSolver->test_message = (uint32_t **) malloc(5 * sizeof(uint32_t *));
+    for (uint32_t i = 0; i < 5; i++) {
+        keccakSolver->test_message[i] = (uint32_t *) malloc(5 * sizeof(uint32_t));
+        memset(keccakSolver->test_message[i], 0, 5 * sizeof(uint32_t));
+    }
+    readMessageFromFile(message_file, keccakSolver->test_message);
+    fclose(message_file);
+#endif
 }
 
 __host__ void
@@ -389,7 +417,7 @@ threadUpdateMQSystem(void *arg) {
     reduce_sys(mqbuffer);
 }
 
-static inline bool
+__host__ static inline bool
 verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
            const uint64_t var_num, const uint64_t term_num,
            const uint64_t start) {
@@ -415,6 +443,37 @@ verify_sol(uint8_t *solution, uint8_t *sys, const uint64_t eq_num,
     }
 
     return true;
+}
+
+__host__ uint64_t
+precalculate_round3_value(KeccakSolver *keccakSolver) {
+    uint64_t ret = 0;
+    uint64_t eq_val = 0;
+    uint64_t i, j;
+    uint8_t **round3_iter_system = keccakSolver->mathSystem.round3_iter_system;
+    uint32_t *round3_mq2lin = keccakSolver->mathSystem.round3_mq2lin;
+    uint32_t **message = keccakSolver->test_message;
+
+    for (i = 0; i < LIN_ITER_EQNUM; i++) {
+        eq_val = 0;
+        for (j = 0; j < IMQ_VAR_NUM; j++) {
+            uint32_t var_idx = round3_mq2lin[j];
+            uint32_t idx_x = (uint32_t) ((var_idx / 32) / 5);
+            uint32_t idx_y = (uint32_t) ((var_idx / 32) % 5);
+            uint32_t idx_z = (uint32_t) (var_idx % 32);
+            eq_val ^= (round3_iter_system[i][j] & ((message[idx_x][idx_y] >> idx_z) & 0x1U));
+        }
+        eq_val ^= round3_iter_system[i][IMQ_VAR_NUM];
+        ret |= (eq_val << i);
+    }
+    return ret;
+}
+
+__host__ bool
+validate_iter_round3_value(uint64_t candidate, uint64_t precal_val) {
+    // accept candidates with difference only on lowest 3 bits
+    uint64_t filter_out = ~0x7UL;
+    return (candidate & filter_out) == (precal_val & filter_out);
 }
 
 __host__ void
@@ -460,6 +519,8 @@ threadCheckResult(void *arg) {
             }
         }
 
+        printStatus(A);
+
         if (cpu_VerifyKeccakResult(A, minDiff)) {
             PRINTF_STAMP("\t\tone thread found valid preimage: ");
             for (i = 0; i < 5; i++) {
@@ -472,8 +533,57 @@ threadCheckResult(void *arg) {
     }
 }
 
+
 __host__ void
 keccakSolverLoop(KeccakSolver *keccakSolver) {
+#ifdef TEST_PRE
+    uint64_t precal_val = precalculate_round3_value(keccakSolver);
+    uint8_t mqsystem[MQ_SYSTEM_SIZE] = {0};
+    uint8_t result[MQ_VAR_NUM] = {0};
+    uint8_t lin_dep[800 * (MQ_VAR_NUM + 1)] = {0};
+    uint32_t mq2lin[MQ_VAR_NUM] = {0};
+    uint32_t lin2mq[800] = {0};
+    guessingBitsToMqSystem(&(keccakSolver->mathSystem), precal_val, mqsystem, mq2lin, lin2mq, lin_dep);
+    reduce_sys(mqsystem);
+
+    // a fake solve of mq system: use known message to substitute mq variables
+    for (uint32_t i = 0; i < MQ_VAR_NUM; i++) {
+        uint32_t idx_z = (uint32_t) (mq2lin[i] % 32);
+        uint32_t idx_y = (uint32_t) ((mq2lin[i] / 32) % 5);
+        uint32_t idx_x = (uint32_t) ((mq2lin[i] / 32) / 5);
+        result[i] = (uint8_t) ((keccakSolver->test_message[idx_x][idx_y] >> idx_z) & 1);
+    }
+
+    uint32_t A[5][5];
+    for (uint32_t i = 0; i < 5; i++)
+        memset(A[i], 0x0, 5 * sizeof(uint32_t));
+    for (uint32_t i = 0; i < 800; i++) {
+        uint32_t idx_z = (uint32_t) (i % 32);
+        uint32_t idx_y = (uint32_t) ((i / 32) % 5);
+        uint32_t idx_x = (uint32_t) ((i / 32) / 5);
+        uint32_t val = 0;
+
+        if (lin2mq[i] == DEP_PLACEMENT) {
+            for (uint32_t j = 0; j < MQ_VAR_NUM; j++) {
+                if (result[j])
+                    val ^= (lin_dep[i * (MQ_VAR_NUM + 1) + j]);
+            }
+            val ^= (lin_dep[i * (MQ_VAR_NUM + 1) + MQ_VAR_NUM]);
+            A[idx_x][idx_y] |= (val << idx_z);
+        } else {
+            if (result[lin2mq[i]])
+                A[idx_x][idx_y] |= (1 << idx_z);
+        }
+    }
+
+    printStatus(A);
+
+    if (!verify_sol(result, mqsystem, MQ_EQ_NUM, MQ_VAR_NUM, MQ_XVAR_NUM, 0))
+        PRINTF_ERR_STAMP("[t] Testing: mq system solve error.\n");
+    else {
+        PRINTF_STAMP("[t] Testing: mq system solve correct!\n");
+    }
+#else
     CUDA_CHECK(cudaDeviceSynchronize());
     dim3 tpb(GPU_THREADS_PER_BLOCK);
 
@@ -488,7 +598,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
     size_t rbuffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * sizeof(uint8_t);
 
     /* temporary memory buffer for validation */
-    size_t lindep_buffer_size = (CHUNK_SIZE * 800 * (MQ_VAR_NUM + 1)) * sizeof(uint32_t);
+    size_t lindep_buffer_size = (CHUNK_SIZE * 800 * (MQ_VAR_NUM + 1)) * sizeof(uint8_t);
     size_t mq2lin_buffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * sizeof(uint32_t);
     size_t lin2mq_buffer_size = (CHUNK_SIZE * 800) * sizeof(uint32_t);
 
@@ -500,8 +610,9 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 
     bool preimage_found = false;
 
-    /* exhaustively search between gbstart and gbend */
-    for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
+        /* exhaustively search between gbstart and gbend */
+        for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
+
         CUDA_CHECK(cudaMemset(keccakSolver->device_mq_buffer, 0, mbuffer_size));
         CUDA_CHECK(cudaMemset(keccakSolver->device_output_buffer, 0, rbuffer_size));
         PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gb + CHUNK_SIZE);
@@ -576,6 +687,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
     free(lin_dep_buffer);
     free(mq2lin_buffer);
     free(lin2mq_buffer);
+#endif
 }
 
 __host__ void
@@ -587,4 +699,11 @@ keccakSolverExit(KeccakSolver *keccakSolver) {
     CUDA_CHECK(cudaFree(keccakSolver->device_mq_buffer));
     CUDA_CHECK(cudaFree(keccakSolver->device_output_buffer));
     EXIT_WITH_MSG("[-] Keccak solver exit\n");
+
+#ifdef TEST_PRE
+    for (uint32_t i = 0; i < 5; i++) {
+        SFREE(keccakSolver->test_message[i]);
+    }
+    SFREE(keccakSolver->test_message);
+#endif
 }
