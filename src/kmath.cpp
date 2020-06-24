@@ -10,7 +10,7 @@
 #define eqvar(i, j, size) \
         ((i) * (size) + (j))
 
-#define _VERIFICATION
+//#define _VERIFICATION
 
 void
 initMathSystem(MathSystem *system) {
