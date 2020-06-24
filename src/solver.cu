@@ -392,7 +392,13 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     CUDA_CHECK(cudaDeviceSynchronize());
 
     loadSystemsFromFile(keccakSolver);
-    CUDA_CHECK(cudaDeviceSynchronize());
+    if (keccakSolver->options.gbstart == 0 && keccakSolver->options.gbend == 0) {
+        PRINTF_STAMP("gb_start and gb_end is not specified or all equals to zero\n");
+        PRINTF_STAMP("enable cluster mode\n")
+        PRINTF_STAMP("guessing range set to 0x1000000, re-random starting bits when guessing has been finished\n");
+        keccakSolver->options.cluster_mode = true;
+    }
+
 #ifdef TEST_PRE
     FILE *message_file = fopen(keccakSolver->options.test_message_file, "r");
     if (message_file == nullptr) {
@@ -587,110 +593,120 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
 #else
     CUDA_CHECK(cudaDeviceSynchronize());
     dim3 tpb(GPU_THREADS_PER_BLOCK);
-	
-    /* set the smallest searching space of guessing bits */
-    uint64_t search_interval = keccakSolver->options.gbend - keccakSolver->options.gbstart;
-    search_interval = search_interval > CHUNK_SIZE ? search_interval : CHUNK_SIZE;
-    uint64_t gbstart = keccakSolver->options.gbstart;
-    uint64_t gbend = gbstart + search_interval;
-
-    /* temporary memory buffer for copy data back from kernel */
-    uint64_t mbuffer_size = (CHUNK_SIZE * MQ_SYSTEM_SIZE) * SIZEOF_U8;
-    uint64_t rbuffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * SIZEOF_U8;
-
-    /* temporary memory buffer for validation */
-    size_t lindep_buffer_size = (CHUNK_SIZE * 800 * (MQ_VAR_NUM + 1)) * SIZEOF_U8;
-    size_t mq2lin_buffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * SIZEOF_U32;
-    size_t lin2mq_buffer_size = (CHUNK_SIZE * 800) * SIZEOF_U32;
-
-    uint8_t *mqbuffer = (uint8_t *) malloc(mbuffer_size);
-    uint8_t *result_buffer = (uint8_t *) malloc(rbuffer_size);
-    uint8_t *lin_dep_buffer = (uint8_t *) malloc(lindep_buffer_size);
-    uint32_t *mq2lin_buffer = (uint32_t *) malloc(mq2lin_buffer_size);
-    uint32_t *lin2mq_buffer = (uint32_t *) malloc(lin2mq_buffer_size);
-
-    bool preimage_found = false;
-
-    /* exhaustively search between gbstart and gbend */
-    for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
-
-        CUDA_CHECK(cudaMemset(keccakSolver->device_mq_buffer, 0, mbuffer_size));
-        CUDA_CHECK(cudaMemset(keccakSolver->device_output_buffer, 0, rbuffer_size));
-        PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gb + CHUNK_SIZE);
-        PRINTF_STAMP("\t\tupdating mq system\n");
-
-        /* update MQ System */
-        memset(mqbuffer, 0, CHUNK_SIZE * MQ_SYSTEM_SIZE);
-        memset(result_buffer, 0, rbuffer_size);
-        memset(mqbuffer, 0, mbuffer_size);
-        memset(lin_dep_buffer, 0, lindep_buffer_size);
-        memset(mq2lin_buffer, 0, mq2lin_buffer_size);
-        memset(lin2mq_buffer, 0, lin2mq_buffer_size);
-
-	tmqarg_t* args = (tmqarg_t*) malloc(CHUNK_SIZE * sizeof(tmqarg_t));
-        uint64_t this_gb;
-        for (this_gb = gb; this_gb < gb + CHUNK_SIZE; this_gb++) {
-            uint64_t thread_id = this_gb - gb;
-            args[thread_id].guessingBits = this_gb;
-            args[thread_id].mqbuffer = mqbuffer + thread_id * MQ_SYSTEM_SIZE;
-            args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
-            args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
-            args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
-            args[thread_id].mathSystem = &keccakSolver->mathSystem;
-            threadpool_add(keccakSolver->threadpool, threadUpdateMQSystem, (void *) &args[thread_id], 0);
-        }
-        threadpool_join(keccakSolver->threadpool, 0);
-	SFREE(args);
-
-        PRINTF_STAMP("\t\tlaunch GPU kernel to solve mq systems\n");
-        /* use gpu to solve mq system*/
-        CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaMemcpy(keccakSolver->device_mq_buffer, mqbuffer, mbuffer_size, cudaMemcpyHostToDevice));
-        kernelLoop << < GPU_BLOCK_NUM, tpb >> > (keccakSolver->device_output_buffer, keccakSolver->device_mq_buffer);
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        PRINTF_STAMP("\t\tGPU kernel finished\n");
-
-        /* check output result */
-        PRINTF_STAMP("\t\tverifying result...\n");
-        CUDA_CHECK(cudaMemcpy(result_buffer, keccakSolver->device_output_buffer, rbuffer_size, cudaMemcpyDeviceToHost));
-	tcheckarg_t* check_args = (tcheckarg_t*) malloc(CHUNK_SIZE * sizeof(tcheckarg_t));
-        uint32_t* minDiff = (uint32_t*) malloc(CHUNK_SIZE * sizeof(uint32_t));
-        memset(minDiff, 80, CHUNK_SIZE * SIZEOF_U32);
-        for (uint64_t thread_id = 0; thread_id < CHUNK_SIZE; thread_id++) {
-            check_args[thread_id].preimage_found = &preimage_found;
-            check_args[thread_id].result_buffer = result_buffer + thread_id * MQ_VAR_NUM;
-            check_args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
-            check_args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
-            check_args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
-            check_args[thread_id].mqbuffer = mqbuffer + thread_id * MQ_SYSTEM_SIZE;
-            check_args[thread_id].minDiff = &minDiff[thread_id];
-            threadpool_add(keccakSolver->threadpool, threadCheckResult, (void *) &check_args[thread_id], 0);
-        }
-        threadpool_join(keccakSolver->threadpool, 0);
-	
-        /* check flag */
-        if (preimage_found) {
-            PRINTF_STAMP("[-] Valid pre-image found\n");
-            PRINTF_STAMP("[-] Terminating...\n");
-            break;
+    
+    do {
+        uint64_t gbstart, gbend, search_interval;
+        /* set the smallest searching space of guessing bits */
+        if (keccakSolver->options.cluster_mode) {
+            PRINTF_STAMP("cluster mode is enabled. random start guessing bits...\n");
+            search_interval = CLUSTER_MODE_RANGE;
+            gbstart = rand();
+            gbstart = (gb_start << 32) | rand();
+            gbend = gbstart + search_interval;
         } else {
-            PRINTF_STAMP("[+] No valid pre-image found\n");
-            uint32_t m = 80;
-            for (uint32_t i = 0; i < CHUNK_SIZE; i++) {
-                if (minDiff[i] < m)
-                    m = minDiff[i];
-            }
-            PRINTF_STAMP("\t\tminimal differ last round: %d\n", m);
+            search_interval = keccakSolver->options.gbend - keccakSolver->options.gbstart;
+            search_interval = search_interval > CHUNK_SIZE ? search_interval : CHUNK_SIZE;
+            gbstart = keccakSolver->options.gbstart;
+            gbend = gbstart + search_interval;
         }
-	free(check_args);
-	free(minDiff);
-    }
-    free(mqbuffer);
-    free(result_buffer);
-    free(lin_dep_buffer);
-    free(mq2lin_buffer);
-    free(lin2mq_buffer);
+
+        /* temporary memory buffer for copy data back from kernel */
+        uint64_t mbuffer_size = (CHUNK_SIZE * MQ_SYSTEM_SIZE) * SIZEOF_U8;
+        uint64_t rbuffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * SIZEOF_U8;
+
+        /* temporary memory buffer for validation */
+        size_t lindep_buffer_size = (CHUNK_SIZE * 800 * (MQ_VAR_NUM + 1)) * SIZEOF_U8;
+        size_t mq2lin_buffer_size = (CHUNK_SIZE * MQ_VAR_NUM) * SIZEOF_U32;
+        size_t lin2mq_buffer_size = (CHUNK_SIZE * 800) * SIZEOF_U32;
+
+        uint8_t *mqbuffer = (uint8_t *) malloc(mbuffer_size);
+        uint8_t *result_buffer = (uint8_t *) malloc(rbuffer_size);
+        uint8_t *lin_dep_buffer = (uint8_t *) malloc(lindep_buffer_size);
+        uint32_t *mq2lin_buffer = (uint32_t *) malloc(mq2lin_buffer_size);
+        uint32_t *lin2mq_buffer = (uint32_t *) malloc(lin2mq_buffer_size);
+
+        bool preimage_found = false;
+
+        /* exhaustively search between gbstart and gbend */
+        for (uint64_t gb = gbstart; gb < gbend; gb += CHUNK_SIZE) {
+            CUDA_CHECK(cudaMemset(keccakSolver->device_mq_buffer, 0, mbuffer_size));
+            CUDA_CHECK(cudaMemset(keccakSolver->device_output_buffer, 0, rbuffer_size));
+            PRINTF_STAMP("[+] Init new guessing bits, starts at: 0x%lx, ends at: 0x%lx\n", gb, gb + CHUNK_SIZE);
+            PRINTF_STAMP("\t\tupdating mq system\n");
+
+            /* update MQ System */
+            memset(mqbuffer, 0, CHUNK_SIZE * MQ_SYSTEM_SIZE);
+            memset(result_buffer, 0, rbuffer_size);
+            memset(mqbuffer, 0, mbuffer_size);
+            memset(lin_dep_buffer, 0, lindep_buffer_size);
+            memset(mq2lin_buffer, 0, mq2lin_buffer_size);
+            memset(lin2mq_buffer, 0, lin2mq_buffer_size);
+
+            tmqarg_t* args = (tmqarg_t*) malloc(CHUNK_SIZE * sizeof(tmqarg_t));
+            uint64_t this_gb;
+            for (this_gb = gb; this_gb < gb + CHUNK_SIZE; this_gb++) {
+                uint64_t thread_id = this_gb - gb;
+                args[thread_id].guessingBits = this_gb;
+                args[thread_id].mqbuffer = mqbuffer + thread_id * MQ_SYSTEM_SIZE;
+                args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
+                args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
+                args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
+                args[thread_id].mathSystem = &keccakSolver->mathSystem;
+                threadpool_add(keccakSolver->threadpool, threadUpdateMQSystem, (void *) &args[thread_id], 0);
+            }
+            threadpool_join(keccakSolver->threadpool, 0);
+            SFREE(args);
+
+            PRINTF_STAMP("\t\tlaunch GPU kernel to solve mq systems\n");
+            /* use gpu to solve mq system*/
+            CUDA_CHECK(cudaDeviceSynchronize());
+            CUDA_CHECK(cudaMemcpy(keccakSolver->device_mq_buffer, mqbuffer, mbuffer_size, cudaMemcpyHostToDevice));
+            kernelLoop << < GPU_BLOCK_NUM, tpb >> > (keccakSolver->device_output_buffer, keccakSolver->device_mq_buffer);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            PRINTF_STAMP("\t\tGPU kernel finished\n");
+
+            /* check output result */
+            PRINTF_STAMP("\t\tverifying result...\n");
+            CUDA_CHECK(cudaMemcpy(result_buffer, keccakSolver->device_output_buffer, rbuffer_size, cudaMemcpyDeviceToHost));
+            tcheckarg_t* check_args = (tcheckarg_t*) malloc(CHUNK_SIZE * sizeof(tcheckarg_t));
+            uint32_t* minDiff = (uint32_t*) malloc(CHUNK_SIZE * sizeof(uint32_t));
+            memset(minDiff, 80, CHUNK_SIZE * SIZEOF_U32);
+            for (uint64_t thread_id = 0; thread_id < CHUNK_SIZE; thread_id++) {
+                check_args[thread_id].preimage_found = &preimage_found;
+                check_args[thread_id].result_buffer = result_buffer + thread_id * MQ_VAR_NUM;
+                check_args[thread_id].lindep = lin_dep_buffer + thread_id * (800 * (MQ_VAR_NUM + 1));
+                check_args[thread_id].mq2lin = mq2lin_buffer + thread_id * (MQ_VAR_NUM);
+                check_args[thread_id].lin2mq = lin2mq_buffer + thread_id * 800;
+                check_args[thread_id].mqbuffer = mqbuffer + thread_id * MQ_SYSTEM_SIZE;
+                check_args[thread_id].minDiff = &minDiff[thread_id];
+                threadpool_add(keccakSolver->threadpool, threadCheckResult, (void *) &check_args[thread_id], 0);
+            }
+            threadpool_join(keccakSolver->threadpool, 0);
+        
+            /* check flag */
+            if (preimage_found) {
+                PRINTF_STAMP("[-] Valid pre-image found\n");
+                PRINTF_STAMP("[-] Terminating...\n");
+                break;
+            } else {
+                PRINTF_STAMP("[+] No valid pre-image found\n");
+                uint32_t m = 80;
+                for (uint32_t i = 0; i < CHUNK_SIZE; i++) {
+                    if (minDiff[i] < m)
+                        m = minDiff[i];
+                }
+                PRINTF_STAMP("\t\tminimal differ last round: %d\n", m);
+            }
+            free(check_args);
+            free(minDiff);
+        }
+        free(mqbuffer);
+        free(result_buffer);
+        free(lin_dep_buffer);
+        free(mq2lin_buffer);
+        free(lin2mq_buffer);
+    } while (!keccakSolver->cluster_mode);
 #endif
 }
 

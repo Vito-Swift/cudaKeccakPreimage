@@ -6,7 +6,7 @@
 
 #define ALPHA 0x44E72
 #define BETA 0xBAA20F
-#define DIFF_TOLERANCE 4
+#define DIFF_TOLERANCE 0
 #define RC1 0x80000000
 #define RC2 0x41010000
 #define RC3 0x51010000
@@ -280,7 +280,6 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
     bit_diff += __builtin_popcount(result[1] ^ 0x27A98747);
     bit_diff += __builtin_popcount(result[2] ^ 0xFF440000);
 #endif
-    printHash(result);
     *minDiff = bit_diff;
     return bit_diff <= DIFF_TOLERANCE;
 #undef u32

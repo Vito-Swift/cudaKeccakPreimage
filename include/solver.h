@@ -12,6 +12,7 @@
 
 typedef struct KeccakSolver {
     bool verbose;
+    bool cluster_mode;
     Options options;
     MathSystem mathSystem;
     uint8_t *device_mq_buffer;
