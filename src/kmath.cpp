@@ -96,7 +96,6 @@ extractRound3LinearDependency(MathSystem *system, uint8_t lin_system[LIN_CONST_E
             system->round3_lin2mq[i] = DEP_PLACEMENT;
         }
     }
-    PRINTF_STAMP("Round3 variable num: %d\n", fvar_offset);
 
 //    for (uint32_t i = 0; i < LIN_CONST_EQNUM; i++) {
 //        for (uint32_t j = 0; j < 801; j++) {
