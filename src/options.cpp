@@ -81,9 +81,9 @@ static struct option keccak_long_opts[] = {
         {"dev_id",    required_argument, 0, OP_DEV_ID},
         {"t",         required_argument, 0, OP_THREAD_NUM},
         {"alin_file", required_argument, 0, OP_ALIN_FILE},
-        {"gb_start",  optional_argument, 0, OP_GB_START},
-        {"gb_end",    optional_argument, 0, OP_GB_END},
-        {"tm_file",   optional_argument, 0, OP_TEST_MSG_F},
+        {"gb_start",  required_argument, 0, OP_GB_START},
+        {"gb_end",    required_argument, 0, OP_GB_END},
+        {"tm_file",   required_argument, 0, OP_TEST_MSG_F},
         {"help", 0,                      0, 'h'},
         {0,      0,                      0, 0}
 };
