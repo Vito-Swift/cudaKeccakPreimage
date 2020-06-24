@@ -392,11 +392,13 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     CUDA_CHECK(cudaDeviceSynchronize());
 
     loadSystemsFromFile(keccakSolver);
+
+    keccakSolver->cluster_mode = false;
     if (keccakSolver->options.gbstart == 0 && keccakSolver->options.gbend == 0) {
         PRINTF_STAMP("gb_start and gb_end is not specified or all equals to zero\n");
         PRINTF_STAMP("enable cluster mode\n");
         PRINTF_STAMP("guessing range set to 0x1000000, re-random starting bits when guessing has been finished\n");
-        keccakSolver->options.cluster_mode = true;
+        keccakSolver->cluster_mode = true;
     }
 
 #ifdef TEST_PRE
@@ -597,7 +599,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
     do {
         uint64_t gbstart, gbend, search_interval;
         /* set the smallest searching space of guessing bits */
-        if (keccakSolver->options.cluster_mode) {
+        if (keccakSolver->cluster_mode) {
             PRINTF_STAMP("cluster mode is enabled. random start guessing bits...\n");
             search_interval = CLUSTER_MODE_RANGE;
             gbstart = rand();
