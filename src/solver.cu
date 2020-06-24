@@ -394,7 +394,7 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     loadSystemsFromFile(keccakSolver);
     if (keccakSolver->options.gbstart == 0 && keccakSolver->options.gbend == 0) {
         PRINTF_STAMP("gb_start and gb_end is not specified or all equals to zero\n");
-        PRINTF_STAMP("enable cluster mode\n")
+        PRINTF_STAMP("enable cluster mode\n");
         PRINTF_STAMP("guessing range set to 0x1000000, re-random starting bits when guessing has been finished\n");
         keccakSolver->options.cluster_mode = true;
     }
