@@ -10,21 +10,21 @@
 
 
 #ifdef TEST_PRE
-#define CHUNK_SIZE (0x100)
-#define MQ_VAR_NUM 30
-#define MQ_EQ_NUM 38
-#define LIN_ITER_EQNUM 54
-#define IMQ_VAR_NUM 94
-#define AMQ_VAR_NUM 40
-#define AMQ_LIN_EQNUM 10
+#define CHUNK_SIZE (0x100UL)
+#define MQ_VAR_NUM 30UL
+#define MQ_EQ_NUM 38UL
+#define LIN_ITER_EQNUM 54UL
+#define IMQ_VAR_NUM 94UL
+#define AMQ_VAR_NUM 40UL
+#define AMQ_LIN_EQNUM 10UL
 #else
-#define CHUNK_SIZE (0x10000)
-#define MQ_VAR_NUM 31
-#define MQ_EQ_NUM 38
-#define LIN_ITER_EQNUM 53
-#define IMQ_VAR_NUM 94
-#define AMQ_VAR_NUM 41
-#define AMQ_LIN_EQNUM 10
+#define CHUNK_SIZE (0x20000UL)
+#define MQ_VAR_NUM 31UL
+#define MQ_EQ_NUM 38UL
+#define LIN_ITER_EQNUM 53UL
+#define IMQ_VAR_NUM 94UL
+#define AMQ_VAR_NUM 41UL
+#define AMQ_LIN_EQNUM 10UL
 #endif
 
 #define LIN_CONST_SYSTEM_SIZE (801 * (LIN_CONST_EQNUM))

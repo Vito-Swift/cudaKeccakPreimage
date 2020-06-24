@@ -254,7 +254,7 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
     if (((A_4_2[1][0] ^ A_4_2[3][0]) & 0x00BB0000) != 0x00A90000)
         PRINTF_ERR("mq constraint error\n");
 #endif
-
+    
     u32 A_5_0[5][5];
     for (int j = 0; j < 5; j++) {
         A_5_0[0][j] = A_4_2[0][j] ^ ((A_4_2[1][j] ^ 0xFFFFFFFF) & A_4_2[2][j]);
@@ -280,7 +280,7 @@ bool cpu_VerifyKeccakResult(const uint32_t A[5][5], uint32_t *minDiff) {
     bit_diff += __builtin_popcount(result[1] ^ 0x27A98747);
     bit_diff += __builtin_popcount(result[2] ^ 0xFF440000);
 #endif
-
+    printHash(result);
     *minDiff = bit_diff;
     return bit_diff <= DIFF_TOLERANCE;
 #undef u32
