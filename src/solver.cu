@@ -603,7 +603,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
             PRINTF_STAMP("cluster mode is enabled. random start guessing bits...\n");
             search_interval = CLUSTER_MODE_RANGE;
             gbstart = rand();
-            gbstart = (gb_start << 32) | rand();
+            gbstart = (gbstart << 32) | rand();
             gbend = gbstart + search_interval;
         } else {
             search_interval = keccakSolver->options.gbend - keccakSolver->options.gbstart;
