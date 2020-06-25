@@ -709,7 +709,7 @@ keccakSolverLoop(KeccakSolver *keccakSolver) {
         free(lin_dep_buffer);
         free(mq2lin_buffer);
         free(lin2mq_buffer);
-    } while (!keccakSolver->cluster_mode);
+    } while (keccakSolver->cluster_mode);
 #endif
 }
 

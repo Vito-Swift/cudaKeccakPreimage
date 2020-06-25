@@ -18,7 +18,7 @@
 #define AMQ_VAR_NUM 40UL
 #define AMQ_LIN_EQNUM 10UL
 #else
-#define CHUNK_SIZE (0x20000UL)
+#define CHUNK_SIZE (0x40000UL)
 #define MQ_VAR_NUM 31UL
 #define MQ_EQ_NUM 38UL
 #define LIN_ITER_EQNUM 53UL
