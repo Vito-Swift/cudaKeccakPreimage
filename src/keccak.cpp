@@ -6,7 +6,7 @@
 
 #define ALPHA 0x44E72
 #define BETA 0xBAA20F
-#define DIFF_TOLERANCE 0
+#define DIFF_TOLERANCE 2
 #define RC1 0x80000000
 #define RC2 0x41010000
 #define RC3 0x51010000
