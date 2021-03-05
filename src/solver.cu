@@ -376,7 +376,7 @@ keccakSolverInit(KeccakSolver *keccakSolver, int argc, char **argv) {
     PRINTF_STAMP("[+] Initial math system\n");
     initMathSystem(&keccakSolver->mathSystem);
 
-    keccakSolver->threadpool = threadpool_create(keccakSolver->options.cpu_thread_num, 0x2000, 0);
+    keccakSolver->threadpool = threadpool_create(keccakSolver->options.cpu_thread_num, 0x40000, 0);
 
     const uint64_t device_mbufer_size = CHUNK_SIZE * MQ_SYSTEM_SIZE * SIZEOF_U8;
     const uint64_t device_obufer_size = CHUNK_SIZE * MQ_VAR_NUM * SIZEOF_U8;
@@ -537,7 +537,12 @@ threadCheckResult(void *arg) {
         if (cpu_VerifyKeccakResult(A, minDiff)) {
             PRINTF_STAMP("\t\tone thread found valid preimage: ");
             printStatus(A);
-            *args->preimage_found = true;
+	    
+	    uint32_t hash[3];
+            cpu_DumpKeccakResult(A, hash);
+	    printHash(hash);
+            
+	    *args->preimage_found = true;
         }
     }
 }
