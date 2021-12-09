@@ -22,3 +22,18 @@ EXAMPLE
 
         start Keccak solver with 20 cpu threads, guessing bits starts at 0x12345 and ends at 0xabcde
         using gpu device 0 to solve mq sub systems
+
+REFERENCE
+@misc{cryptoeprint:2021:732,
+    author       = {Congming Wei and
+            Chenhao Wu and
+            Ximing Fu and
+            Xiaoyang Dong and
+            Kai He and
+            Jue Hong and
+            Xiaoyun Wang},
+    title        = {Preimage Attacks on 4-round Keccak by Solving Multivariate Quadratic Systems},
+    howpublished = {Cryptology ePrint Archive, Report 2021/732},
+    year         = {2021},
+    note         = {\url{https://ia.cr/2021/732}},
+}
